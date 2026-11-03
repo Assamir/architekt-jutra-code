@@ -27,8 +27,7 @@ echo "Starting host app..."
 
 # --- MCP app (Spring Boot) ---
 echo "Starting MCP app..."
-cd mcp-server
-./mvnw -q spring-boot:run &
+(cd mcp-server && ./mvnw -q spring-boot:run) &
 
 # --- Plugins ---
 for dir in plugins/*/; do
