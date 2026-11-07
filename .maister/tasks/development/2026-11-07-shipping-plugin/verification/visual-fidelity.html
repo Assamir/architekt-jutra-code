@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visual Fidelity &mdash; 2026-11-07-shipping-plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+.verdict { border-left:5px solid var(--warn); background:var(--warn-soft); }
+.verdict b { color:var(--warn); font-size:17px; }
+.warnc { color:var(--warn); font-weight:600; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; }
+.grid .card { margin:0; }
+.scn h3 { font-size:14px; margin:0 0 4px; }
+.scn .meta { font-size:12px; color:var(--dim); margin-bottom:6px; }
+.scn ul { margin:6px 0; padding-left:18px; font-size:13px; }
+.scn img.shot { margin-top:8px; }
+dl.f { display:grid; grid-template-columns:150px 1fr; gap:4px 12px; margin:8px 0 0; font-size:13px; }
+dl.f dt { color:var(--dim); }
+dl.f dd { margin:0; }
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pair figure{margin:0}.pair figcaption{font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}@media(max-width:760px){.pair{grid-template-columns:1fr}}
+</style>
+
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">&larr; Dashboard</a>
+  <a href="../implementation/spec.html">Spec</a>
+  <a href="../implementation/implementation-plan.html">Plan</a>
+  <a href="implementation-verification.html">Verification</a>
+  <a href="e2e-verification-report.html">E2E</a>
+  <span class="here">Visual fidelity</span>
+  <a href="visual-fidelity.md" target="_blank" rel="noopener" class="md">md twin &#8599;</a>
+</nav>
+<header>
+  <span class="badge">Visual fidelity &middot; report-only</span>
+  <h1>Shipping plugin &mdash; mockup vs implementation</h1>
+  <div style="color:var(--dim);font-size:13px">LLM-judged structural match (not pixel diff) of the <code>.tc-plugin</code> frame region &middot; source: analysis/design-context/INDEX.md &middot; does NOT gate completion</div>
+</header>
+<div class="tiles">
+  <div class="tile"><b>10</b><span>compared</span></div>
+  <div class="tile"><b class="pass">9</b><span>match</span></div>
+  <div class="tile"><b class="warnc">1</b><span>minor deviation</span></div>
+  <div class="tile"><b>0</b><span>drift</span></div>
+</div>
+<section class="tldr card">
+  <p><b>High fidelity.</b> Of 10 design references (8 screens, 2 components), 9 match structurally, 1 deviates in a minor way, and none drifts.</p>
+  <p>The one deviation, <code>screen:shipping-config-edit</code>, is required by the spec: the mockup shows a carrier row and a method row in edit mode together, while req 4 allows only one edit row. Other differences are sample data or ordering the spec overrides, or mockup-only helper classes (<code>row-off</code>, <code>muted</code>) the spec chose not to reproduce.</p>
+  <h2 style="margin-top:12px">Key Decisions</h2>
+  <ul><li>Spec-sanctioned differences (row order, hint content, no <code>row-off</code>/<code>muted</code>) count as a match and are noted per screen.</li>
+  <li>Mockups were rendered in the same browser and their <code>.tc-plugin</code> region was captured, for a like-for-like comparison.</li></ul>
+  <h2>Open Questions / Risks</h2>
+  <ul><li>Inactive rows are not visually de-emphasised; only the badges carry the state. Design may want a <code>tc-*</code> class later.</li>
+  <li>Both the mockups and the implementation render <code>&lt;p class="tc-error"&gt;</code> grey because of <code>.tc-plugin p</code> specificity (e2e Minor #2).</li></ul>
+</section>
+<nav class="toc" style="font-size:13px">Contents: <a href="#screen-shipping-config">screen:shipping-config</a> &middot; <a href="#screen-shipping-config-edit">screen:shipping-config-edit</a> &middot; <a href="#screen-shipping-config-readonly">screen:shipping-config-readonly</a> &middot; <a href="#screen-product-shipping-tab">screen:product-shipping-tab</a> &middot; <a href="#screen-product-shipping-tab-warning">screen:product-shipping-tab-warning</a> &middot; <a href="#screen-product-shipping-tab-nodims">screen:product-shipping-tab-nodims</a> &middot; <a href="#screen-product-shipping-tab-readonly">screen:product-shipping-tab-readonly</a> &middot; <a href="#screen-product-shipping-tab-empty">screen:product-shipping-tab-empty</a> &middot; <a href="#component-size-check-badge">component:size-check-badge</a> &middot; <a href="#component-inline-edit-row">component:inline-edit-row</a></nav>
+<main>
+<h2>Per-screen comparison</h2>
+<div class="card" id="screen-shipping-config">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:shipping-config</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/shipping-configuration-editor.html">shipping-configuration-editor.html</a> &middot; Captured: 03b-config-editor-frame.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-shipping-configuration-editor.png" alt="mockup shipping-configuration-editor"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/03b-config-editor-frame.png" alt="03b-config-editor-frame.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>Layout: <code>h1</code> &rarr; two <code>tc-section</code>s, each with a <code>tc-flex</code> add form above a <code>tc-table</code>. Matches.</li><li>Field order: carrier input &rarr; Add carrier; select &rarr; method name &rarr; "Max (cm, optional):" &rarr; L, W, H &rarr; Add method. Matches.</li><li>Actions: Edit / Delete ghost buttons, Active checkboxes, "Carrier inactive" badge. Matches.</li><li>Note: rows follow the sorting rule (Kurier before Paczkomat); <code>row-off</code> greying deliberately omitted.</li></ul></div><div class="card" id="screen-shipping-config-edit">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:shipping-config-edit</code> &mdash; <span class="warnc">&#9888; Minor deviation</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/shipping-configuration-inline-edit-and-blocked-delete.html">shipping-configuration-inline-edit-and-blocked-delete.html</a> &middot; Captured: 06-config-edit-and-blocked-delete.png, 05-config-method-inline-edit.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-shipping-configuration-inline-edit-and-blocked-delete.png" alt="mockup shipping-configuration-inline-edit-and-blocked-delete"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/06-config-edit-and-blocked-delete.png" alt="06-config-edit-and-blocked-delete.png"><img class="shot" src="screenshots/05-config-method-inline-edit.png" alt="05-config-method-inline-edit.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>Blocked-delete <code>tc-error</code> under the Carriers add form. Matches.</li><li>Carrier edit row (name input, Active, Save/Cancel) and method edit row (select, name, L &times; W &times; H, Active, Save/Cancel). Matches.</li><li><b>Deviation:</b> the mockup shows a carrier row and a method row in edit mode together; req 4 allows one edit row, so the two were captured separately. This is an intentional spec rule.</li><li>Recommendation: update the mockup annotation or accept as is.</li></ul></div><div class="card" id="screen-shipping-config-readonly">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:shipping-config-readonly</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/shipping-configuration-read-only-viewer.html">shipping-configuration-read-only-viewer.html</a> &middot; Captured: 08-config-viewer.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-shipping-configuration-read-only-viewer.png" alt="mockup shipping-configuration-read-only-viewer"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/08-config-viewer.png" alt="08-config-viewer.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>Read-only notice, tables only, no forms or actions. Matches.</li><li>Badges Active (success) / Inactive / Inactive (carrier). Matches.</li><li>Note: DHL Paleta was deliberately inactive during capture to show the method "Inactive" badge.</li></ul></div><div class="card" id="screen-product-shipping-tab">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:product-shipping-tab</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/product-shipping-tab-editor.html">product-shipping-tab-editor.html</a> &middot; Captured: 12-product-tab-editor-singular.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-product-shipping-tab-editor.png" alt="mockup product-shipping-tab-editor"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/12-product-tab-editor-singular.png" alt="12-product-tab-editor-singular.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li><code>h3</code> &rarr; box line &rarr; hint &rarr; table &rarr; footer with Save + counter. Matches.</li><li>1 of 6 disabled, singular hint, Pocztex disabled with "Inactive". Matches.</li><li>Note: InPost Kurier unticked (the mockup unticks Paczkomat yet names it in the hint, a sample inconsistency); order per the rule; plain text instead of <code>muted</code>.</li></ul></div><div class="card" id="screen-product-shipping-tab-warning">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:product-shipping-tab-warning</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/product-shipping-tab-too-large-method-still-enabled.html">product-shipping-tab-too-large-method-still-enabled.html</a> &middot; Captured: 11-product-tab-warning-plural.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-product-shipping-tab-too-large-method-still-enabled.png" alt="mockup product-shipping-tab-too-large-method-still-enabled"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/11-product-tab-warning-plural.png" alt="11-product-tab-warning-plural.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li><code>tc-error</code> hint above the table, all ticked, 0 of 6. Matches.</li><li>Note: the hint names both InPost methods (plural) per req 19; the mockup names only Paczkomat.</li></ul></div><div class="card" id="screen-product-shipping-tab-nodims">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:product-shipping-tab-nodims</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/product-shipping-tab-no-box-dimensions.html">product-shipping-tab-no-box-dimensions.html</a> &middot; Captured: 18-product-tab-nodims-after-remove.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-product-shipping-tab-no-box-dimensions.png" alt="mockup product-shipping-tab-no-box-dimensions"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/18-product-tab-nodims-after-remove.png" alt="18-product-tab-nodims-after-remove.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>No-box line with bold <b>Box Size</b>; every active row "No dimensions"; Pocztex "Inactive"; no hint; Save + 1 of 6. Matches.</li></ul></div><div class="card" id="screen-product-shipping-tab-readonly">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:product-shipping-tab-readonly</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/product-shipping-tab-read-only-viewer.html">product-shipping-tab-read-only-viewer.html</a> &middot; Captured: 17-product-tab-viewer.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-product-shipping-tab-read-only-viewer.png" alt="mockup product-shipping-tab-read-only-viewer"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/17-product-tab-viewer.png" alt="17-product-tab-viewer.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>Box line &rarr; read-only notice &rarr; hint &rarr; table with all checkboxes disabled; no footer. Matches, including the notice-before-hint order.</li></ul></div><div class="card" id="screen-product-shipping-tab-empty">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>screen:product-shipping-tab-empty</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/product-shipping-tab-empty-state.html">product-shipping-tab-empty-state.html</a> &middot; Captured: 19-product-tab-empty-editor.png, 20-product-tab-empty-viewer.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-product-shipping-tab-empty-state.png" alt="mockup product-shipping-tab-empty-state"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/19-product-tab-empty-editor.png" alt="19-product-tab-empty-editor.png"><img class="shot" src="screenshots/20-product-tab-empty-viewer.png" alt="20-product-tab-empty-viewer.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>Heading, box line, empty hint; no table or Save; the viewer shows no notice. Matches.</li></ul></div><div class="card" id="component-size-check-badge">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>component:size-check-badge</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/product-shipping-tab-editor.html">product-shipping-tab-editor.html</a> &middot; Captured: 11-product-tab-warning-plural.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-product-shipping-tab-editor.png" alt="mockup product-shipping-tab-editor"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/11-product-tab-warning-plural.png" alt="11-product-tab-warning-plural.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li><code>tc-badge--success</code> Fits, <code>tc-badge--danger</code> Too large, <code>tc-badge</code> Inactive, plain No limits / No dimensions; classes verified in the DOM. Matches.</li></ul></div><div class="card" id="component-inline-edit-row">
+<h3 style="margin:0 0 6px;font-size:14.5px"><code>component:inline-edit-row</code> &mdash; <span class="pass">&#10003; Match</span></h3>
+<div style="font-size:12px;color:var(--dim);margin-bottom:8px">Mockup: <a href="../analysis/design-context/mockups/shipping-configuration-inline-edit-and-blocked-delete.html">shipping-configuration-inline-edit-and-blocked-delete.html</a> &middot; Captured: 04-config-carrier-inline-edit.png, 05-config-method-inline-edit.png</div>
+<div class="pair"><figure><figcaption>Mockup (rendered frame)</figcaption><img class="shot" src="screenshots/mockup-shipping-configuration-inline-edit-and-blocked-delete.png" alt="mockup shipping-configuration-inline-edit-and-blocked-delete"></figure>
+<figure><figcaption>Implementation</figcaption><img class="shot" src="screenshots/04-config-carrier-inline-edit.png" alt="04-config-carrier-inline-edit.png"><img class="shot" src="screenshots/05-config-method-inline-edit.png" alt="05-config-method-inline-edit.png"></figure></div>
+<ul style="font-size:13px;margin:10px 0 0;padding-left:18px"><li>Cells switch to <code>tc-input</code> / <code>tc-select</code> with a <code>tc-primary-button</code> Save and a <code>tc-ghost-button</code> Cancel. Matches.</li></ul></div>
+</main>
+</body>
+</html>

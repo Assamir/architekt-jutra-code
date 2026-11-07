@@ -15,11 +15,14 @@ The core application acts as a lightweight host that manages plugin lifecycle, s
 │       └── category/           # Domain: categories
 ├── plugins/                    # Independent plugin modules
 │   ├── warehouse/              # Warehouse management plugin (Vite + TS)
-│   └── box-size/               # Box size calculator plugin (Vite + TS)
+│   ├── box-size/               # Box size calculator plugin (Vite + TS)
+│   └── shipping/               # Shipping carriers and per-product restrictions (Vite + TS, :3010)
 ├── compose.yml                 # Docker Compose (PostgreSQL 18)
 ├── start-dev.sh                # Single script to run everything locally
 └── .maister/                   # AI-assisted development artifacts
 ```
+
+Plugin dev ports: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011).
 
 ## Built with AI (Skillpanel / Maister Plugin)
 
@@ -69,6 +72,7 @@ Edit each `.env` file and replace placeholder values with your actual API keys. 
 # Install plugin dependencies
 (cd plugins/warehouse && npm install)
 (cd plugins/box-size && npm install)
+(cd plugins/shipping && npm install)
 
 # Start everything (PostgreSQL + Spring Boot + all plugins)
 ./start-dev.sh

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation Plan — Shipping Plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+.step.todo::before  { content:"☐ "; color:var(--dim); }
+.step.done::before  { content:"☑ "; color:var(--ok); }
+.step.done          { color:var(--dim); }
+.group.todo .g-badge::after { content:"pending"; }
+.group.done .g-badge::after { content:"✓ completed"; color:var(--ok); }
+.dim { color:var(--dim); } .small { font-size:12px; }
+.g-badge { font-size:11px; font-weight:600; text-transform:uppercase; margin-left:8px; color:var(--dim); }
+ul.steps { list-style:none; padding-left:4px; } ul.steps li { margin:4px 0; }
+.meta { margin:4px 0; } .meta code { display:inline-block; margin:2px 2px; }
+.flow .lane { margin:8px 0; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.node { display:inline-block; padding:4px 10px; border:1px solid var(--accent); border-radius:99px; background:var(--accent-soft); }
+.split { display:inline-flex; flex-direction:column; gap:4px; }
+.acc ul { margin:4px 0; }
+.group { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin:14px 0; }
+</style>
+</head>
+<body>
+<nav class="crumbs"><a href="../dashboard.html">← Dashboard</a> <a href="spec.html">Spec</a> <span class="here">Plan</span> <a href="../verification/implementation-verification.html">Verification</a> <a href="implementation-plan.md" target="_blank" rel="noopener" class="md">md twin ↗</a></nav>
+<header><h1>Implementation Plan: Shipping Plugin <span class="badge">plan</span></h1><div class="dim">Generated 2026-11-07 · source <a href="implementation-plan.md" target="_blank" rel="noopener">implementation-plan.md</a> · coverage <a href="visual-coverage.md" target="_blank" rel="noopener">visual-coverage.md</a></div></header>
+<div class="tiles"><div class="tile"><b>7</b><span>task groups</span></div><div class="tile"><b>44</b><span>total steps</span></div><div class="tile"><b>19</b><span>expected tests</span></div><div class="tile"><b>10/10</b><span>design items covered</span></div><div class="tile"><b>medium</b><span>complexity</span></div></div>
+<section class="tldr card"><h2>TL;DR</h2><p>7 task groups, 44 steps, 19 automated tests (16 plugin domain + 3 host icon).<br>Plugin chain: Group 1 (scaffold + size-check domain) → Group 2 (mappers + canEdit) → Group 3 (ShippingConfigPage) and Group 4 (ProductShippingTab). Groups 3 and 4 share <code>src/main.tsx</code>, so they run one after the other.<br>Group 5 (host <code>truck</code> icon) and Group 6 (docs) depend on nothing. Group 7 (test review + lint gate) runs last.<br>Complexity: medium. There are no backend changes and about 20 files, mostly new.</p>
+<h2>Key Decisions</h2><ul><li>Scaffold is merged with the size-check half of <code>domain.ts</code> (Group 1). This gives every plugin group real test-first content, and the spec&#x27;s fixed 16 tests split cleanly into two groups of 8.</li><li><code>src/main.tsx</code> starts with an empty <code>&lt;Routes&gt;</code> in Group 1, and each page group adds its own <code>&lt;Route&gt;</code>. No stub pages are needed, and the shared file makes the executor serialize Groups 3 and 4.</li><li>UI groups (3, 4) write no component tests. The spec rules them out (consistent with sibling Vite plugins), so their first step defines a walkthrough checklist, and verification is <code>npm run build</code> (<code>tsc -b</code>) plus the browser walkthrough.</li><li>The Test Review group (7) adds no tests. The spec fixes the counts (16 plugin, 3 host), so Group 7 reviews coverage, runs every feature test, the build and the lint gate, and reports gaps instead of writing tests.</li><li>Mockup helper classes (<code>muted</code>, <code>boxline</code>, <code>hint</code>, <code>editrow</code>, <code>row-off</code>, …) map to plain elements, <code>tc-*</code> classes and inline layout styles. <code>plugin-ui.css</code> does not change.</li></ul>
+<h2>Open Questions / Risks</h2><ul><li><span class="sev warning">risk</span>Vitest/Vite peer range: the host already pairs <code>vitest ^3.2.4</code> with Vite 8. If <code>npm install</code> in <code>plugins/shipping</code> fails with ERESOLVE, align the version with the host&#x27;s lockfile, not with <code>--force</code>.</li><li><span class="sev warning">risk</span>Reload on focus probably will not fire on host tab switches (iframes stay mounted). This is accepted by the spec; it must be checked in the Group 4 walkthrough.</li><li><span class="sev warning">risk</span>Root <code>CLAUDE.md</code> has uncommitted user edits. Group 6 must append to line 39 only and must not reformat the file.</li><li><span class="sev warning">risk</span>Manual manifest registration (<code>PUT /api/plugins/shipping/manifest</code> with an admin token) is required before the browser walkthrough of Groups 3 and 4.</li><li><span class="sev warning">risk</span>The lint baseline (16 problems, 14 errors) must be measured before Group 5 starts, so that a later count can be compared with it.</li></ul></section>
+<h2 id="deps">Dependency overview</h2><div class="card flow"><div class="lane"><span class="node">G1 Scaffold &amp; size-check</span> → <span class="node">G2 Mappers &amp; canEdit</span> → <span class="split"><span class="node">G3 Config page</span><span class="node">G4 Product tab</span></span><span class="dim small">(G3 and G4 share <code>src/main.tsx</code>, so they are serialized)</span></div><div class="lane"><span class="node">G5 Host icon</span> <span class="dim small">no dependencies</span></div><div class="lane"><span class="node">G6 Docs</span> <span class="dim small">no dependencies</span></div><div class="lane">all → <span class="node">G7 Test review &amp; lint gate</span></div></div>
+<main><h2 id="groups">Task groups</h2>
+<section data-group="1" class="group done">
+<h3>Group 1: Plugin Scaffold &amp; Size-Check Domain <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> None</div>
+<div class="meta"><b>Files:</b> <code>plugins/shipping/package.json</code> <code>plugins/shipping/package-lock.json</code> <code>plugins/shipping/index.html</code> <code>plugins/shipping/manifest.json</code> <code>plugins/shipping/tsconfig.json</code> <code>plugins/shipping/vite.config.ts</code> <code>plugins/shipping/src/vite-env.d.ts</code> <code>plugins/shipping/src/main.tsx</code> <code>plugins/shipping/src/domain.ts</code> <code>plugins/shipping/src/domain.test.ts</code></div>
+<ul class="steps">
+<li data-step="1.1" class="step done"><b>1.1</b> Create the npm project skeleton by copying from <code>plugins/warehouse</code></li>
+<li data-step="1.2" class="step done"><b>1.2</b> Write <code>manifest.json</code> (req 25)</li>
+<li data-step="1.3" class="step done"><b>1.3</b> Run <code>npm install</code> in <code>plugins/shipping</code> and confirm the lockfile is created</li>
+<li data-step="1.4" class="step done"><b>1.4</b> Write the 8 size-check tests in <code>src/domain.test.ts</code> (test first, with explicit <code>import { describe, it, expect } from &quot;vitest&quot;</code>)</li>
+<li data-step="1.5" class="step done"><b>1.5</b> Implement the types and size-check helpers in <code>src/domain.ts</code></li>
+<li data-step="1.6" class="step done"><b>1.6</b> Ensure the size-check tests pass</li>
+</ul>
+<div class="acc"><b>Acceptance:</b><ul><li>The 8 size-check tests pass</li><li><code>manifest.json</code> matches req 25 exactly; <code>vite.config.ts</code> has port 3010 with <code>strictPort: true</code></li><li><code>domain.ts</code> has no enums and no <code>as unknown as</code> casts, and imports <code>../../sdk</code> for SDK types only</li></ul></div>
+</section>
+<section data-group="2" class="group done">
+<h3>Group 2: Domain Mappers &amp; Edit Permission <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> 1</div>
+<div class="meta"><b>Files:</b> <code>plugins/shipping/src/domain.ts</code> <code>plugins/shipping/src/domain.test.ts</code></div>
+<ul class="steps">
+<li data-step="2.1" class="step done"><b>2.1</b> Write the 8 mapper and permission tests (append to <code>src/domain.test.ts</code>)</li>
+<li data-step="2.2" class="step done"><b>2.2</b> Implement the <code>Carrier</code> / <code>ShippingMethod</code> types and mappers</li>
+<li data-step="2.3" class="step done"><b>2.3</b> Implement <code>toDisabledMethodIds(data)</code>, <code>pruneDisabledIds(ids, methods)</code> and <code>canEdit(token)</code></li>
+<li data-step="2.4" class="step done"><b>2.4</b> Check that every exported helper will have a caller in Group 3 or 4 (minimal-implementation standard)</li>
+<li data-step="2.5" class="step done"><b>2.5</b> Ensure the domain tests pass</li>
+</ul>
+<div class="acc"><b>Acceptance:</b><ul><li>All 16 domain tests pass</li><li>No mapper reads <code>PluginObject.id</code></li><li><code>canEdit</code> never throws</li></ul></div>
+</section>
+<section data-group="3" class="group done">
+<h3>Group 3: Shipping Configuration Page (menu.main) <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> 2</div>
+<div class="meta"><b>Files:</b> <code>plugins/shipping/src/pages/ShippingConfigPage.tsx</code> <code>plugins/shipping/src/main.tsx</code></div>
+<ul class="steps">
+<li data-step="3.1" class="step done"><b>3.1</b> Define the walkthrough checklist (no component tests, per the spec)</li>
+<li data-step="3.2" class="step done"><b>3.2</b> Add the <code>/</code> route in <code>src/main.tsx</code> and create <code>ShippingConfigPage</code> (a named <code>export function</code>, no default export)</li>
+<li data-step="3.3" class="step done"><b>3.3</b> Carriers section (reqs 1–3)</li>
+<li data-step="3.4" class="step done"><b>3.4</b> Delivery methods section (reqs 6, 7, 9, 10)</li>
+<li data-step="3.5" class="step done"><b>3.5</b> Inline edit for both tables (reqs 4, 8; component:inline-edit-row)</li>
+<li data-step="3.6" class="step done"><b>3.6</b> Delete (reqs 5, 11)</li>
+<li data-step="3.7" class="step done"><b>3.7</b> Permissions and errors (reqs 22–24)</li>
+<li data-step="3.8" class="step done"><b>3.8</b> Check the page against all four visual references (layout, classes, copy, field order) and fix any differences</li>
+<li data-step="3.9" class="step done"><b>3.9</b> Ensure the plugin still builds and its tests pass</li>
+</ul>
+<details><summary>Visual references (4)</summary><table><tr><th>Element</th><th>Mockup</th><th>Locator</th><th>Acceptance</th></tr>
+<tr><td><code>screen:shipping-config</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-editor.html">shipping-configuration-editor.html</a></td><td>plugin frame, lines 418–429 (<code>&lt;div class=&quot;tc-plugin&quot;&gt;</code> through the methods <code>tc-table</code>)</td><td>root <code>tc-plugin</code> with padding 1rem and max-width 900px; <code>h1</code> &quot;Shipping&quot;; two <code>tc-section</code>s in the order Carriers, then Delivery methods, each with a <code>tc-flex</code> add form above a <code>tc-table</code>. Carrier columns are Name / Methods / Status / actions. Method columns are Carrier / Method / Max size (L×W×H) / Status / actions. The Status cell holds an &quot;Active&quot; checkbox, plus a <code>tc-badge</code> &quot;Carrier inactive&quot; when the carrier is inactive or missing. Actions are Edit (<code>tc-ghost-button</code>) and Delete (<code>tc-ghost-button--danger</code>). The add carrier form is an input with placeholder &quot;Carrier name (e.g. GLS)&quot; and the button &quot;Add carrier&quot;. The add method form, in order, is a carrier select (&quot;-- Carrier --&quot;), a name input, the label &quot;Max (cm, optional):&quot;, L/W/H number inputs and &quot;Add method&quot;.</td></tr>
+<tr><td><code>screen:shipping-config-edit</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-inline-edit-and-blocked-delete.html">shipping-configuration-inline-edit-and-blocked-delete.html</a></td><td>plugin frame, lines 418–431 (the carrier edit row in the Carriers table, the <code>tc-error</code> under the Carriers add form, and the method edit row in the methods table)</td><td>a blocked carrier delete shows <code>tc-error</code> under the Carriers add form with the exact singular or plural sentence from req 5; the rest of the page stays interactive</td></tr>
+<tr><td><code>component:inline-edit-row</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-inline-edit-and-blocked-delete.html">shipping-configuration-inline-edit-and-blocked-delete.html</a></td><td><code>&lt;tr class=&quot;editrow&quot;&gt;</code> rows at lines 421 and 431</td><td>the carrier edit row has a <code>tc-input</code> name (prefilled), an Active checkbox, <code>tc-primary-button</code> &quot;Save&quot; and <code>tc-ghost-button</code> &quot;Cancel&quot;. In the method edit row the cells switch, in column order, to a <code>tc-select</code> carrier, a <code>tc-input</code> name, L/W/H <code>tc-input</code>s inside a <code>tc-flex</code>, an Active checkbox, and Save / Cancel. No <code>editrow</code> background class is reproduced.</td></tr>
+<tr><td><code>screen:shipping-config-readonly</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-read-only-viewer.html">shipping-configuration-read-only-viewer.html</a></td><td>plugin frame, lines 418–423</td><td><code>&lt;p&gt;</code> &quot;You have read-only access. Ask an editor to change carriers or delivery methods.&quot; directly under the <code>h1</code>; no add forms, Edit, Delete or checkboxes. Status shows <code>tc-badge tc-badge--success</code> &quot;Active&quot;, a plain <code>tc-badge</code> &quot;Inactive&quot;, or &quot;Inactive (carrier)&quot;, following the rules of req 23.</td></tr>
+</table></details>
+<div class="acc"><b>Acceptance:</b><ul><li><code>npm run build</code> passes; the 16 domain tests still pass</li><li>Inline edit and toggles keep the objectId (no duplicate objects); at most one edit row is open at a time</li><li>Implementation matches each <code>acceptance</code> criterion declared in Visual References</li></ul></div>
+</section>
+<section data-group="4" class="group done">
+<h3>Group 4: Product Shipping Tab (product.detail.tabs) <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> 2</div>
+<div class="meta"><b>Files:</b> <code>plugins/shipping/src/pages/ProductShippingTab.tsx</code> <code>plugins/shipping/src/main.tsx</code></div>
+<ul class="steps">
+<li data-step="4.1" class="step done"><b>4.1</b> Define the walkthrough checklist (no component tests, per the spec)</li>
+<li data-step="4.2" class="step done"><b>4.2</b> Add the <code>/product-shipping</code> route in <code>src/main.tsx</code> and create <code>ProductShippingTab</code> (a named export)</li>
+<li data-step="4.3" class="step done"><b>4.3</b> Box line, empty state and table (reqs 14–17)</li>
+<li data-step="4.4" class="step done"><b>4.4</b> Size check badge and hint (reqs 18, 19)</li>
+<li data-step="4.5" class="step done"><b>4.5</b> Footer and Save (reqs 20, 21)</li>
+<li data-step="4.6" class="step done"><b>4.6</b> Reload on focus (req 28)</li>
+<li data-step="4.7" class="step done"><b>4.7</b> Permissions and errors (reqs 22–24)</li>
+<li data-step="4.8" class="step done"><b>4.8</b> Check the tab against all six visual references and fix any differences</li>
+<li data-step="4.9" class="step done"><b>4.9</b> Ensure the plugin still builds and its tests pass</li>
+</ul>
+<details><summary>Visual references (6)</summary><table><tr><th>Element</th><th>Mockup</th><th>Locator</th><th>Acceptance</th></tr>
+<tr><td><code>screen:product-shipping-tab</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-editor.html">product-shipping-tab-editor.html</a></td><td>plugin frame, line 420 (<code>&lt;div class=&quot;tc-plugin&quot; style=&quot;padding:1.5rem&quot;&gt;</code> through the footer)</td><td>root <code>tc-plugin</code> with padding 1.5rem; <code>h3</code> &quot;Delivery methods for this product&quot; with margin <code>0 0 1rem</code>; box line <code>&lt;strong&gt;Box:&lt;/strong&gt; L × W × H cm (from Box Size)</code>; a <code>tc-table</code> with columns Available / Carrier / Method / Max (cm) / Size check; native checkboxes with aria-label <code>Available: &lt;name&gt;</code>; a footer <code>tc-flex</code> (margin-top 1rem) with the <code>tc-primary-button</code> &quot;Save&quot; and the counter &quot;N of M methods disabled for this product&quot;</td></tr>
+<tr><td><code>component:size-check-badge</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-editor.html">product-shipping-tab-editor.html</a></td><td>the Size check column of the table on line 420</td><td><code>tc-badge tc-badge--success</code> &quot;Fits&quot;; <code>tc-badge tc-badge--danger</code> &quot;Too large&quot;; <code>tc-badge</code> &quot;Inactive&quot; (with the checkbox disabled); plain text &quot;No limits&quot; and &quot;No dimensions&quot;; precedence Inactive &gt; No dimensions &gt; No limits &gt; Fits / Too large</td></tr>
+<tr><td><code>screen:product-shipping-tab-warning</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-too-large-method-still-enabled.html">product-shipping-tab-too-large-method-still-enabled.html</a></td><td>the <code>tc-error</code> hint paragraph between the box line and the table, line 420</td><td><code>tc-error</code> placed above the table that names every active, ticked, too-large method in table order, using the exact singular or plural sentence from req 19 (the rule decides which names appear, not the mockup&#x27;s sample text)</td></tr>
+<tr><td><code>screen:product-shipping-tab-nodims</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-no-box-dimensions.html">product-shipping-tab-no-box-dimensions.html</a></td><td>the box line and the Size check column, line 420</td><td>the line &quot;No box dimensions — size check unavailable. Set them in the Box Size tab.&quot;; every active row shows &quot;No dimensions&quot;; no hint</td></tr>
+<tr><td><code>screen:product-shipping-tab-readonly</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-read-only-viewer.html">product-shipping-tab-read-only-viewer.html</a></td><td>the read-only notice and the table, line 420</td><td>&quot;Read-only: you can see which methods are available but not change them.&quot;; all checkboxes disabled; the hint is still shown; no Save and no counter</td></tr>
+<tr><td><code>screen:product-shipping-tab-empty</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-empty-state.html">product-shipping-tab-empty-state.html</a></td><td>the box line and the empty message, line 420</td><td>the box line plus &quot;No delivery methods configured. Add them in the Shipping section.&quot;; no table, no Save, and no read-only notice for viewers</td></tr>
+</table></details>
+<div class="acc"><b>Acceptance:</b><ul><li><code>npm run build</code> passes; the 16 domain tests still pass</li><li>The selection survives a refresh and is reset only on the initial load and after Save</li><li>Implementation matches each <code>acceptance</code> criterion declared in Visual References</li></ul></div>
+</section>
+<section data-group="5" class="group done">
+<h3>Group 5: Host Icon Map (<code>truck</code>) <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> None</div>
+<div class="meta"><b>Files:</b> <code>src/main/frontend/src/components/shared/Icons.tsx</code> <code>src/main/frontend/src/test/icons.test.ts</code></div>
+<ul class="steps">
+<li data-step="5.1" class="step done"><b>5.1</b> Record the lint baseline before any edit: <code>npx eslint .</code> in <code>src/main/frontend</code>, expecting 16 problems (14 errors, 2 warnings)</li>
+<li data-step="5.2" class="step done"><b>5.2</b> Write 3 tests in <code>src/test/icons.test.ts</code>, inside a <code>describe(&quot;resolveIcon&quot;)</code> block with explicit <code>import { describe, it, expect } from &quot;vitest&quot;</code></li>
+<li data-step="5.3" class="step done"><b>5.3</b> Add <code>Truck</code> to the <code>lucide-react</code> named import and <code>truck: Truck</code> to <code>ICON_MAP</code> in <code>Icons.tsx</code>. Nothing else changes; the pre-existing <code>Icons.tsx:26:17</code> error stays as it is.</li>
+<li data-step="5.4" class="step done"><b>5.4</b> Ensure the icon tests pass: <code>npx vitest run src/test/icons.test.ts</code> (3 tests only)</li>
+<li data-step="5.5" class="step done"><b>5.5</b> Lint check: <code>npx eslint src/components/shared/Icons.tsx src/test/icons.test.ts</code> reports only the pre-existing <code>Icons.tsx:26:17</code>, and <code>npx eslint .</code> still reports 16 problems or fewer</li>
+</ul>
+<div class="acc"><b>Acceptance:</b><ul><li>The 3 icon tests pass</li><li>No new lint problems</li></ul></div>
+</section>
+<section data-group="6" class="group done">
+<h3>Group 6: Documentation (port rule + shipping plugin) <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> None</div>
+<div class="meta"><b>Files:</b> <code>.maister/docs/standards/plugins/plugin-development.md</code> <code>.maister/docs/INDEX.md</code> <code>.maister/docs/project/tech-stack.md</code> <code>plugins/CLAUDE.md</code> <code>CLAUDE.md</code> <code>README.md</code></div>
+<ul class="steps">
+<li data-step="6.1" class="step done"><b>6.1</b> Write the verification checks first: list <code>grep</code> checks that <code>3010</code> and the port rule appear in all six files and that <code>port: 3004</code> no longer appears in <code>plugin-development.md</code></li>
+<li data-step="6.2" class="step done"><b>6.2</b> Update <code>plugin-development.md</code> (Fixed Dev Ports prose ~l.56: add shipping 3010 and the rule; code sample ~l.59: <code>port: 3004</code> → <code>port: 3011</code>) and <code>.maister/docs/INDEX.md</code> (the Plugin Development port list ~l.109)</li>
+<li data-step="6.3" class="step done"><b>6.3</b> Update <code>tech-stack.md</code> (add <code>shipping</code> (Vite + React, :3010) to the plugin list ~l.44–46) and <code>README.md</code> (<code>shipping/</code> in the plugin tree ~l.18; <code>(cd plugins/shipping &amp;&amp; npm install)</code> in Quick Start ~l.71)</li>
+<li data-step="6.4" class="step done"><b>6.4</b> Add a &quot;Shipping Plugin&quot; entry to <code>plugins/CLAUDE.md</code> under Reference Plugins. Cover: the port and the port rule; storage (objects <code>carrier</code> / <code>shipping-method</code> keyed by objectId, pluginData <code>disabledMethodIds</code>); the box-size read via <code>hostApp.getProduct</code> with reload on focus; <code>canEdit</code>; the manifest registration command. Append <code>shipping</code> (:3010, Vite) to the Plugins line (~l.39) of the root <code>CLAUDE.md</code> only, leaving the user&#x27;s uncommitted edits intact.</li>
+<li data-step="6.5" class="step done"><b>6.5</b> Run the 6.1 checks and confirm <code>git diff CLAUDE.md</code> shows only the one-line addition on top of the user&#x27;s edits</li>
+</ul>
+<div class="acc"><b>Acceptance:</b><ul><li>All six docs mention shipping on 3010 and state the same port rule</li><li>Root <code>CLAUDE.md</code> has a single-line change; no week7–week10/ or tools/ files are touched</li></ul></div>
+</section>
+<section data-group="7" class="group done">
+<h3>Group 7: Test Review &amp; Gap Analysis <span class="g-badge"></span></h3>
+<div class="meta"><b>Depends on:</b> 1, 2, 3, 4, 5, 6</div>
+<div class="meta"><b>Files:</b> none (review only)</div>
+<ul class="steps">
+<li data-step="7.1" class="step done"><b>7.1</b> Review the 19 existing tests (16 in <code>plugins/shipping/src/domain.test.ts</code>, 3 in <code>src/main/frontend/src/test/icons.test.ts</code>) against reqs 18, 21, 22 and the M1 objectId guard</li>
+<li data-step="7.2" class="step done"><b>7.2</b> Analyze gaps for THIS feature only. The spec fixes the test counts (L8), so write no additional tests; record any uncovered critical behavior for the verification phase</li>
+<li data-step="7.3" class="step done"><b>7.3</b> Run the feature tests: <code>npm test</code> in <code>plugins/shipping</code> (16) and <code>npx vitest run src/test/icons.test.ts</code> in <code>src/main/frontend</code> (3)</li>
+<li data-step="7.4" class="step done"><b>7.4</b> Run <code>npm run build</code> in <code>plugins/shipping</code> and <code>npx eslint .</code> in <code>src/main/frontend</code> (16 problems or fewer)</li>
+<li data-step="7.5" class="step done"><b>7.5</b> Confirm the <code>strictPort</code> behavior: a second <code>npm run dev</code> on 3010 fails instead of moving to another port</li>
+</ul>
+<div class="acc"><b>Acceptance:</b><ul><li>All 19 feature tests pass</li><li>No more than 10 additional tests are added (planned: 0)</li><li>The plugin build passes and the lint count is no higher than the baseline</li></ul></div>
+</section>
+<h2 id="coverage">Visual coverage</h2><div class="card"><table><tr><th>Screen / component</th><th>Covered by</th><th>Status</th></tr>
+<tr><td><code>screen:shipping-config</code></td><td>Group 3 (Shipping Configuration Page)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:shipping-config-edit</code></td><td>Group 3 (Shipping Configuration Page)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:shipping-config-readonly</code></td><td>Group 3 (Shipping Configuration Page)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:product-shipping-tab</code></td><td>Group 4 (Product Shipping Tab)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:product-shipping-tab-warning</code></td><td>Group 4 (Product Shipping Tab)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:product-shipping-tab-nodims</code></td><td>Group 4 (Product Shipping Tab)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:product-shipping-tab-readonly</code></td><td>Group 4 (Product Shipping Tab)</td><td class="pass">covered</td></tr>
+<tr><td><code>screen:product-shipping-tab-empty</code></td><td>Group 4 (Product Shipping Tab)</td><td class="pass">covered</td></tr>
+<tr><td><code>component:size-check-badge</code></td><td>Group 4 (Product Shipping Tab); logic in Group 1 (<code>sizeCheck</code>)</td><td class="pass">covered</td></tr>
+<tr><td><code>component:inline-edit-row</code></td><td>Group 3 (Shipping Configuration Page)</td><td class="pass">covered</td></tr>
+</table><p class="dim">All screens covered (10/10).</p></div>
+<h2>Execution order</h2><ol><li>Task Group 1: Plugin Scaffold &amp; Size-Check Domain (6 steps)</li><li>Task Group 2: Domain Mappers &amp; Edit Permission (5 steps, depends on 1)</li><li>Task Group 3: Shipping Configuration Page (9 steps, depends on 2; shares <code>src/main.tsx</code> with Group 4)</li><li>Task Group 4: Product Shipping Tab (9 steps, depends on 2; shares <code>src/main.tsx</code> with Group 3)</li><li>Task Group 5: Host Icon Map (5 steps, no dependencies)</li><li>Task Group 6: Documentation (5 steps, no dependencies)</li><li>Task Group 7: Test Review &amp; Gap Analysis (5 steps, depends on 1–6)</li></ol>
+<h2>Standards compliance</h2><ul><li>global/: <code>minimal-implementation.md</code> (every domain helper has a caller, no stubs), <code>commenting.md</code>, <code>error-handling.md</code> (specific messages, validation before writes), <code>conventions.md</code> (unique fixed ports, course directories untouched)</li><li>plugins/: <code>plugin-development.md</code> (structure, the shared <code>sdk.ts</code> import, mandatory <code>tc-*</code>, manifest, <code>strictPort</code>, try/catch for every SDK call)</li><li>backend/: <code>plugin-auth.md</code> (<code>hostApp.getToken()</code>, permissions from the JWT claim)</li><li>frontend/: <code>components.md</code> (named exports, <code>import type</code>), <code>css.md</code> (no inline hex), <code>tooling.md</code> (strict TS, no enums, <code>tsc -b</code> gate), <code>accessibility.md</code> (aria-labels, real labels and buttons)</li><li>testing/: <code>frontend-testing.md</code> (host test in <code>src/test/</code>, describe named after the feature, explicit vitest imports)</li></ul>
+</main>
+</body>
+</html>
