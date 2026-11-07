@@ -1,0 +1,53 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-insert-shipping-sample-data
+      author: aj
+      context: dev
+      comment: Sample carriers and shipping methods for the shipping plugin (plugin_objects requires the plugin row)
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO plugins (id, name, version, url, description, enabled, manifest, created_at, updated_at)
+              VALUES ('shipping', 'Shipping', '1.0.0', 'http://localhost:3010',
+                'Carriers, delivery methods and per-product shipping restrictions', true,
+                '{"name": "Shipping", "version": "1.0.0", "url": "http://localhost:3010",
+                  "description": "Carriers, delivery methods and per-product shipping restrictions",
+                  "extensionPoints": [
+                    {"type": "menu.main", "label": "Shipping", "icon": "truck", "path": "/", "priority": 110},
+                    {"type": "product.detail.tabs", "label": "Shipping", "path": "/product-shipping", "priority": 80}]}'::jsonb,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              ON CONFLICT (id) DO NOTHING
+        - sql:
+            sql: >
+              INSERT INTO plugin_objects (id, plugin_id, object_type, object_id, data, created_at, updated_at)
+              SELECT nextval('plugin_object_seq'), 'shipping', object_type, object_id, data::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+              FROM (VALUES
+                ('carrier', '9056bf09-43df-4de5-8d8d-8af57483e03c', '{"name": "DHL", "active": true}'),
+                ('carrier', '1a515283-4671-46bd-8bca-6967d5a8a747', '{"name": "DPD", "active": true}'),
+                ('carrier', '46e6628d-1aed-43d7-93c6-0229d7fa3672', '{"name": "InPost", "active": true}'),
+                ('carrier', '5ae2e3f6-cf2d-4c16-9f04-a7bd9820e3f3', '{"name": "Poczta Polska", "active": true}'),
+                ('shipping-method', '2f21447a-d739-48a2-9e7a-86880df1a3b7', '{"carrierId": "9056bf09-43df-4de5-8d8d-8af57483e03c", "name": "DHL Parcel Kurier", "active": true, "maxLengthCm": 120, "maxWidthCm": 60, "maxHeightCm": 60}'),
+                ('shipping-method', '9749cadb-0756-4873-a4bc-e844bbdcb474', '{"carrierId": "9056bf09-43df-4de5-8d8d-8af57483e03c", "name": "DHL POP (punkt odbioru)", "active": true, "maxLengthCm": 60, "maxWidthCm": 40, "maxHeightCm": 40}'),
+                ('shipping-method', '010451a2-b15d-4783-9ad2-e13278b8b75f', '{"carrierId": "1a515283-4671-46bd-8bca-6967d5a8a747", "name": "DPD Classic Kurier", "active": true, "maxLengthCm": 150, "maxWidthCm": 100, "maxHeightCm": 100}'),
+                ('shipping-method', 'a0129ed5-6a09-4e72-a8da-42e567e98771', '{"carrierId": "1a515283-4671-46bd-8bca-6967d5a8a747", "name": "DPD Pickup (punkt odbioru)", "active": true, "maxLengthCm": 100, "maxWidthCm": 50, "maxHeightCm": 50}'),
+                ('shipping-method', 'cc586ee7-42be-4a60-9141-07ef07bb6fc7', '{"carrierId": "46e6628d-1aed-43d7-93c6-0229d7fa3672", "name": "Paczkomat – gabaryt A", "active": true, "maxLengthCm": 64, "maxWidthCm": 38, "maxHeightCm": 8}'),
+                ('shipping-method', '8ed4dd5e-2dda-44a2-b5df-79054c0db8d9', '{"carrierId": "46e6628d-1aed-43d7-93c6-0229d7fa3672", "name": "Paczkomat – gabaryt B", "active": true, "maxLengthCm": 64, "maxWidthCm": 38, "maxHeightCm": 19}'),
+                ('shipping-method', 'd8cf22fc-0486-4d57-8492-cc7df671c9c9', '{"carrierId": "46e6628d-1aed-43d7-93c6-0229d7fa3672", "name": "Paczkomat – gabaryt C", "active": true, "maxLengthCm": 64, "maxWidthCm": 38, "maxHeightCm": 41}'),
+                ('shipping-method', 'd1cf5c05-84ae-4125-ba0e-15c3f71913bb', '{"carrierId": "46e6628d-1aed-43d7-93c6-0229d7fa3672", "name": "Kurier InPost", "active": true, "maxLengthCm": 120, "maxWidthCm": 60, "maxHeightCm": 60}'),
+                ('shipping-method', 'bfdf39e2-f2e0-4255-b21b-c2d3ae1d48fc', '{"carrierId": "5ae2e3f6-cf2d-4c16-9f04-a7bd9820e3f3", "name": "Pocztex Kurier", "active": true, "maxLengthCm": 120, "maxWidthCm": 60, "maxHeightCm": 60}'),
+                ('shipping-method', 'a0c9602e-a047-4a59-8c87-a79325d419e7', '{"carrierId": "5ae2e3f6-cf2d-4c16-9f04-a7bd9820e3f3", "name": "Paczka pocztowa", "active": true, "maxLengthCm": 60, "maxWidthCm": 50, "maxHeightCm": 30}'),
+                ('shipping-method', 'c7a4b021-0a87-440f-9d33-5e8a3ca64382', '{"carrierId": "5ae2e3f6-cf2d-4c16-9f04-a7bd9820e3f3", "name": "Pocztex – odbiór w punkcie", "active": true, "maxLengthCm": 60, "maxWidthCm": 50, "maxHeightCm": 30}')
+              ) AS seed (object_type, object_id, data)
+              ON CONFLICT (plugin_id, object_type, object_id) DO NOTHING
+      rollback:
+        - sql:
+            sql: >
+              DELETE FROM plugin_objects WHERE plugin_id = 'shipping' AND object_id IN (
+                '9056bf09-43df-4de5-8d8d-8af57483e03c', '1a515283-4671-46bd-8bca-6967d5a8a747',
+                '46e6628d-1aed-43d7-93c6-0229d7fa3672', '5ae2e3f6-cf2d-4c16-9f04-a7bd9820e3f3',
+                '2f21447a-d739-48a2-9e7a-86880df1a3b7', '9749cadb-0756-4873-a4bc-e844bbdcb474',
+                '010451a2-b15d-4783-9ad2-e13278b8b75f', 'a0129ed5-6a09-4e72-a8da-42e567e98771',
+                'cc586ee7-42be-4a60-9141-07ef07bb6fc7', '8ed4dd5e-2dda-44a2-b5df-79054c0db8d9',
+                'd8cf22fc-0486-4d57-8492-cc7df671c9c9', 'd1cf5c05-84ae-4125-ba0e-15c3f71913bb',
+                'bfdf39e2-f2e0-4255-b21b-c2d3ae1d48fc', 'a0c9602e-a047-4a59-8c87-a79325d419e7',
+                'c7a4b021-0a87-440f-9d33-5e8a3ca64382')

@@ -44,3 +44,5 @@ plugins/*/dist/
 
 ### LiteLLM ###
 litellm/.env
+.playwright-mcp/
+*.tsbuildinfo

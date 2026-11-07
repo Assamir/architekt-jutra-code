@@ -16,7 +16,9 @@ import pl.devstyle.aj.WithMockAdminUser;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -121,8 +123,8 @@ class PluginRegistryIntegrationTests {
         mockMvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value("enabled-plugin"));
+                .andExpect(jsonPath("$[*].id", hasItem("enabled-plugin")))
+                .andExpect(jsonPath("$[*].id", not(hasItem("disabled-plugin"))));
     }
 
     @Test
@@ -161,6 +163,6 @@ class PluginRegistryIntegrationTests {
         mockMvc.perform(get("/api/plugins"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$[*].id", not(hasItem("toggle-plugin"))));
     }
 }
