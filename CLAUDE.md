@@ -1,3 +1,72 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repo is
+
+**aj** — a microkernel (plugin-based) showcase: a Spring Boot 4 / Java 25 host app with a React frontend, iframe-based plugins, and a separate MCP server. The repo doubles as course material: `week7/`–`week10/` and `tools/` hold standalone demos and course exercises (knowledge-graph demos, a .NET port in `week9/AJ-dotnet`, etc.) that are not part of the running application — leave them alone unless the task targets them.
+
+## Commands
+
+Prerequisites: JDK 25, Docker (Postgres, TestContainers, and jOOQ codegen all need it), Node.js.
+
+```bash
+# Full local stack: docker compose services + host app + MCP server + every plugin with a package.json
+./start-dev.sh                # bash
+./start-dev.ps1               # Windows PowerShell
+
+# Host app only (needs Postgres from `docker compose up -d`; spring-boot-docker-compose can also start it)
+./mvnw spring-boot:run        # http://localhost:8080
+
+# Backend tests (integration tests use TestContainers with real PostgreSQL 18)
+./mvnw test
+./mvnw test -Dtest=ProductIntegrationTests                  # single class
+./mvnw test -Dtest=ProductIntegrationTests#createProduct_*  # single method / pattern
+```
+
+Every Maven build (including `test`) runs two expensive steps in `generate-sources`/`generate-resources`:
+1. **jOOQ codegen** — spins up a `postgres:18` container, applies the Liquibase changelog, generates `pl.devstyle.aj.jooq` into `target/generated-sources/jooq`. Re-run after changing migrations. Skip with `-Dskip.jooq.generation=true` once sources exist.
+2. **Frontend build** — `frontend-maven-plugin` installs Node 22 locally and runs `npm install && npm run build` in `src/main/frontend`, writing into `src/main/resources/static`. Skip with `-Dskip.npm -Dskip.installnodenpm`.
+
+Host frontend (`src/main/frontend`, React 19 + Chakra UI v3 + Vite):
+```bash
+npm run dev          # Vite dev server, proxies /api to :8080
+npm run build        # app + plugin SDK bundle (vite.sdk.config.ts → static/assets/plugin-sdk.js)
+npm run lint
+npm test             # vitest run; single file: npx vitest run src/test/pages.test.tsx
+```
+
+Plugins (`plugins/<name>`): `npm run dev`. `warehouse` (:3001), `box-size` (:3002) and `shipping` (:3010) are Vite apps; `ai-description` (:3003) is Next.js + BAML (`npm run generate` regenerates `baml_client`; tests via Jest) and needs `plugins/ai-description/.env` plus `litellm/.env` (copy from `.env.example`).
+
+MCP server (`mcp-server/`, own Maven wrapper, port 8081): `cd mcp-server && ./mvnw spring-boot:run` / `./mvnw test`.
+
+## Architecture
+
+### Host backend (`src/main/java/pl/devstyle/aj`)
+- `core/plugin` — the microkernel. Plugins are registered by uploading a manifest (`PUT /api/plugins/{id}/manifest`, stored as `PluginDescriptor`). Plugins persist data two ways: per-product JSONB under `products.plugin_data -> {pluginId}` (`PluginDataService`), and plugin-owned collections in `plugin_objects` keyed by `(pluginId, objectType, objectId)` with optional entity binding to PRODUCT/CATEGORY (`PluginObjectService`). JSONB filtering (`jsonPath:op:value`) is done in jOOQ query services (`Db*QueryService`).
+- `core/security` — stateless JWT auth (`JwtAuthenticationFilter`, `JwtTokenProvider`). **All authorization rules live in `SecurityConfiguration`** as `requestMatchers` on `PERMISSION_*` authorities (READ, EDIT, PLUGIN_MANAGEMENT, plus `mcp:read`/`mcp:edit` for MCP tokens) — add new endpoints there, not with `@PreAuthorize`.
+- `core/oauth2` — the host is also an OAuth2 authorization server (dynamic client registration, token, introspection, `.well-known` metadata) used by the MCP server.
+- `product`, `category`, `user`, `api` — domain modules: JPA for CRUD, jOOQ for complex reads.
+- `footprint` — a self-contained hexagonal module: public `api` (`FootprintFacade`), `internal` implementation with `ports`, `spi/stub` in-memory adapters activated by `app.footprint.adapters=in-memory`, async audit via events + spring-retry, CSV export. Keep callers on `api` only.
+- `archetype/pricing` — pricing archetype domain model (components, calculators, validity).
+- Migrations: Liquibase YAML in `src/main/resources/db/changelog/2026/NNN-*.yaml`, included from `db.changelog-master.yaml`; context `dev` loads sample data.
+
+### Host frontend and plugin runtime
+- `src/main/frontend/src/plugins` renders plugin extension points (`menu.main`, `product.detail.tabs`, `product.detail.info` as iframes; `product.list.filters` rendered natively by the host from manifest metadata) and handles postMessage RPC from iframes (`PluginMessageHandler`).
+- `src/main/frontend/src/plugin-sdk` is the browser SDK that plugins load from `/assets/plugin-sdk.js`; it is built as a separate IIFE bundle. `plugins/sdk.ts` holds the shared TypeScript types plugins import; `plugins/server-sdk.ts` is the HTTP equivalent for plugin backends (forwards the user's JWT).
+- **Read `plugins/CLAUDE.md` before touching plugins** — it defines manifest format, extension points, SDK API, storage patterns, and the mandatory `plugin-ui.css` (`tc-*` classes) styling rules. Note: manifest upload requires a token with `PERMISSION_PLUGIN_MANAGEMENT`.
+
+### MCP server (`mcp-server/`)
+Separate Spring Boot app exposing aj products/categories as MCP tools. It validates incoming bearer tokens (JWT or introspection against the host's OAuth2 server), exchanges them, and calls the host REST API via `AjApiClient` (`AJ_BACKEND_URL`, default `http://localhost:8080`).
+
+### Docker Compose (`compose.yml`)
+Besides the app's Postgres, it runs the AI tooling for `ai-description`: LiteLLM (LLM gateway, config in `litellm/`), Langfuse (+ ClickHouse, MinIO, Redis), and Presidio (PII anonymization).
+
+## Testing conventions (summary — full rules in `.maister/docs/standards/testing/`)
+- Integration-first: `@SpringBootTest` + `@Import(TestcontainersConfiguration.class)`; MockMvc tests must also import `SecurityMockMvcConfiguration` (Spring Boot 4 / Security 7). Use `@WithMockEditUser` / `@WithMockAdminUser` or `@WithMockUser(authorities = ...)`.
+- Test classes end in `*Tests`, package-private, same package as production; methods named `action_condition_expectedResult`.
+- Frontend tests live in `src/main/frontend/src/test/`, use a per-file `renderWithProviders()` and `vi.mock()` for API modules.
+
 ## Coding Standards & Conventions
 
 Read @.maister/docs/INDEX.md before starting any task. It indexes the project's coding standards and conventions:
@@ -5,6 +74,8 @@ Read @.maister/docs/INDEX.md before starting any task. It indexes the project's 
 - Project vision, tech stack, and architecture decisions
 
 Follow standards in `.maister/docs/standards/` when writing code — they represent team decisions. If standards conflict with the task, ask the user.
+
+Note: `.maister/docs/project/architecture.md` still describes the pre-alpha scaffolding phase and is out of date; trust the code and the Architecture section above.
 
 ### Standards Evolution
 
@@ -19,3 +90,9 @@ When this happens, briefly suggest the standard to the user. If approved, invoke
 ## Maister Workflows
 
 This project uses the maister plugin for structured development workflows. When any `/maister:*` command is invoked, execute it via the Skill tool immediately — do not skip workflows for "straightforward" tasks. The user chose the workflow intentionally; complexity assessment is the workflow's job.
+
+Workflow artifacts (research, product design, implementation logs) are committed under `.maister/tasks/`.
+
+## Knowledge graph
+
+The project skill `aj-kg-query` (`.claude/skills/`) answers structural questions about the platform (modules, endpoints, plugins, extension points) from a Neo4j knowledge graph via the `neo4j-aj-kb` MCP server — use it when that server is available instead of grepping broadly.
