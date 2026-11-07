@@ -44,6 +44,9 @@ Technology choices for **aj**, a microkernel (plugin-based) platform: a Spring B
 | `warehouse` | React 19 + Vite 8 | 3001 |
 | `box-size` | React 19 + Vite 8 | 3002 |
 | `ai-description` | Next.js 15 + BAML 0.220 (LLM via LiteLLM) | 3003 |
+| `shipping` | React 19 + Vite 8 | 3010 |
+
+Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011).
 
 ### Testing
 - **Backend**: JUnit 5, Spring Boot test starters (JPA/jOOQ/Liquibase/WebMVC), `spring-security-test`, TestContainers (PostgreSQL 18)

@@ -146,6 +146,28 @@ describe("Sidebar with plugin menu items", () => {
     // Disabled plugins should NOT appear
     expect(screen.queryByText("Disabled")).not.toBeInTheDocument();
   });
+
+  it("shows plugin menu items but not the Plugins link to a read-only user", async () => {
+    const { useAuth } = await import("../auth/AuthContext");
+    vi.mocked(useAuth).mockReturnValue({
+      token: "test-token",
+      username: "viewer",
+      permissions: ["READ"],
+      login: vi.fn(),
+      logout: vi.fn(),
+    });
+    const { PluginProvider } = await import("../plugins/PluginContext");
+    const { Sidebar } = await import("../components/layout/Sidebar");
+
+    renderWithProviders(
+      <PluginProvider>
+        <Sidebar />
+      </PluginProvider>,
+    );
+
+    expect(await screen.findByText("Warehouse")).toBeInTheDocument();
+    expect(screen.queryByText("Plugins")).not.toBeInTheDocument();
+  });
 });
 
 describe("ProductDetailPage", () => {

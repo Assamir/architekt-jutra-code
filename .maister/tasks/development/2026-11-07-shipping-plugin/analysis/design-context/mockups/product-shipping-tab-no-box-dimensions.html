@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Shipping Tab - No Box Dimensions — Product Design</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+    }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    #status { font-size: 0.8rem; color: #4a4; font-weight: 500; }
+    #status.disconnected { color: #a44; }
+
+    /* Screen navigation */
+    .screen-nav {
+      background: #fafafa;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1.5rem;
+    }
+    .nav-screens {
+      display: flex;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.25rem;
+    }
+    .nav-screen {
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
+      text-decoration: none;
+      color: #555;
+      font-size: 0.8rem;
+      background: #eee;
+      transition: background 0.15s;
+    }
+    .nav-screen:hover { background: #ddd; }
+    .nav-screen.active { background: #333; color: #fff; }
+    .nav-prevnext {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.25rem;
+    }
+    .nav-arrow {
+      font-size: 0.8rem;
+      color: #0066cc;
+      text-decoration: none;
+    }
+    .nav-arrow:hover { text-decoration: underline; }
+
+    /* Gallery */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+      padding: 1rem 0;
+    }
+    .gallery-card {
+      display: block;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow 0.2s, transform 0.15s;
+    }
+    .gallery-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    .gallery-card-title {
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-bottom: 1px solid #eee;
+      background: #fafafa;
+    }
+    .gallery-card-preview {
+      height: 230px;
+      overflow: hidden;
+      position: relative;
+      background: #0e0f11;
+    }
+    /* The screen renders in a private iframe at desktop width, scaled down to a
+       thumbnail. pointer-events off so the whole card stays a single click target. */
+    .gallery-frame {
+      width: 1280px;
+      height: 820px;
+      border: 0;
+      transform: scale(0.27);
+      transform-origin: top left;
+      pointer-events: none;
+    }
+
+    /* Mockup content */
+    main {
+      max-width: 1200px;
+      margin: 1.5rem auto;
+      padding: 1.5rem;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      min-height: 300px;
+      position: relative;
+    }
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      color: #999;
+      font-size: 1rem;
+      text-align: center;
+      line-height: 1.8;
+    }
+    .annotation-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 3px;
+      pointer-events: none;
+      max-width: 250px;
+      z-index: 1000;
+      line-height: 1.3;
+    }
+    .annotation-tooltip::before {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: 10px;
+      width: 8px;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.75);
+      transform: rotate(45deg);
+    }
+
+    /* Interactive screen-to-screen navigation */
+    [data-screen] { cursor: pointer; }
+    [data-screen]:hover { outline: 2px solid #0066cc; outline-offset: 2px; border-radius: 2px; }
+
+    /* Annotation toggle */
+    .annotations-hidden .annotation-tooltip { display: none; }
+    #annotation-toggle {
+      font-size: 0.8rem;
+      padding: 0.25rem 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #f0f0f0;
+      cursor: pointer;
+      margin-left: 0.75rem;
+    }
+    #annotation-toggle:hover { background: #e0e0e0; }
+    #annotation-toggle.active { background: #333; color: #fff; border-color: #333; }
+    #gallery-link {
+      display: inline-block; margin-right: 0.5rem; padding: 0.35rem 0.75rem;
+      border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem;
+      color: #333; text-decoration: none; background: #f5f5f5;
+    }
+    #gallery-link:hover { background: #e0e0e0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Product Shipping Tab - No Box Dimensions</h1>
+    <div>
+      <a href="/" id="gallery-link" title="Back to the gallery of all screens">⊞ Gallery</a>
+      <button id="annotation-toggle" class="active" title="Toggle annotation tooltips">Annotations</button>
+      <span id="status">Connected</span>
+    </div>
+  </header>
+
+  <nav class="screen-nav"><div class="nav-screens"><a href="/screen/shipping-configuration-editor" class="nav-screen">Shipping Configuration - Editor</a><a href="/screen/shipping-configuration-inline-edit-and-blocked-delete" class="nav-screen">Shipping Configuration - Inline Edit and Blocked Delete</a><a href="/screen/shipping-configuration-read-only-viewer" class="nav-screen">Shipping Configuration - Read-only Viewer</a><a href="/screen/product-shipping-tab-editor" class="nav-screen">Product Shipping Tab - Editor</a><a href="/screen/product-shipping-tab-too-large-method-still-enabled" class="nav-screen">Product Shipping Tab - Too-large Method Still Enabled</a><a href="/screen/product-shipping-tab-no-box-dimensions" class="nav-screen active">Product Shipping Tab - No Box Dimensions</a><a href="/screen/product-shipping-tab-read-only-viewer" class="nav-screen">Product Shipping Tab - Read-only Viewer</a><a href="/screen/product-shipping-tab-empty-state" class="nav-screen">Product Shipping Tab - Empty State</a></div><div class="nav-prevnext"><a href="/screen/product-shipping-tab-too-large-method-still-enabled" class="nav-arrow">&larr; Product Shipping Tab - Too-large Method Still Enabled</a><a href="/screen/product-shipping-tab-read-only-viewer" class="nav-arrow">Product Shipping Tab - Read-only Viewer &rarr;</a></div></nav>
+
+  <main id="mockup-container">
+    <style>/*
+ * TomorrowCommerce Plugin UI
+ * Shared styles for plugins to match the host app look and feel.
+ * Load in your plugin's <head>:
+ *   <link rel="stylesheet" href="http://localhost:8080/assets/plugin-ui.css" />
+ */
+
+/* ── Base Reset ── */
+.tc-plugin {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: #0F172A;
+  line-height: 1.5;
+}
+
+.tc-plugin h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+
+.tc-plugin h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1E293B;
+  margin: 0 0 12px;
+}
+
+.tc-plugin p {
+  color: #64748B;
+  margin: 0 0 8px;
+}
+
+/* ── Buttons ── */
+.tc-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #fff;
+  background-color: #2563EB;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  line-height: 1.5;
+}
+
+.tc-primary-button:hover {
+  background-color: #1D4ED8;
+}
+
+.tc-primary-button:active {
+  background-color: #1E40AF;
+}
+
+.tc-primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tc-ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #334155;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  line-height: 1.5;
+}
+
+.tc-ghost-button:hover {
+  background-color: #F1F5F9;
+}
+
+.tc-ghost-button--danger {
+  color: #DC2626;
+}
+
+.tc-ghost-button--danger:hover {
+  background-color: #FEF2F2;
+}
+
+/* ── Inputs ── */
+.tc-input,
+.tc-select {
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #334155;
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.tc-input:focus,
+.tc-select:focus {
+  border-color: #3B82F6;
+}
+
+.tc-input::placeholder {
+  color: #94A3B8;
+}
+
+/* ── Tables ── */
+.tc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tc-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3B82F6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 10px 12px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.tc-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  color: #334155;
+}
+
+.tc-table tr:hover td {
+  background-color: #F8FAFC;
+}
+
+.tc-table th[align="right"],
+.tc-table td[align="right"] {
+  text-align: right;
+}
+
+.tc-table tfoot td {
+  font-weight: 600;
+  border-top: 1px solid #E2E8F0;
+  border-bottom: none;
+}
+
+/* ── Cards ── */
+.tc-card {
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+/* ── Badges ── */
+.tc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tc-badge--success {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.tc-badge--danger {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+/* ── Layout ── */
+.tc-section {
+  margin-bottom: 24px;
+}
+
+.tc-flex {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tc-error {
+  color: #DC2626;
+  font-size: 13px;
+}
+
+.shell{display:flex;min-height:640px;background:#FAFAF9;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#0F172A}
+.side{width:220px;background:#fff;border-right:1px solid #E2E8F0;padding:16px 12px;flex-shrink:0}
+.brand{font-weight:700;font-size:16px;padding:4px 8px 16px;color:#1E293B}
+.nav a{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;color:#334155;text-decoration:none;font-size:14px;margin-bottom:2px;cursor:pointer}
+.nav a.on{background:#EFF6FF;color:#1D4ED8;font-weight:600}
+.nav .ico{width:18px;text-align:center}
+.nav .sep{font-size:11px;text-transform:uppercase;color:#94A3B8;letter-spacing:.05em;padding:14px 10px 6px}
+.main{flex:1;padding:24px 28px;min-width:0}
+.crumbs{font-size:13px;color:#64748B;margin-bottom:12px}
+.frame{background:#fff;border:1px dashed #93C5FD;border-radius:12px;position:relative}
+.frame-tag{position:absolute;top:-10px;right:12px;background:#DBEAFE;color:#1D4ED8;font-size:11px;padding:1px 8px;border-radius:6px}
+.pcard{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;gap:20px}
+.pimg{width:96px;height:96px;background:#F1F5F9;border-radius:8px}
+.pcard h1{font-size:22px;margin:0 0 4px}
+.muted{color:#64748B;font-size:13px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #E2E8F0;margin-bottom:0}
+.tabs span{padding:10px 14px;font-size:14px;color:#64748B;cursor:pointer}
+.tabs span.on{color:#1D4ED8;border-bottom:2px solid #2563EB;font-weight:600}
+.role{display:inline-block;font-size:12px;background:#FEF3C7;color:#92400E;border-radius:6px;padding:2px 8px;margin-left:8px;vertical-align:middle}
+
+.tc-plugin label.cb{display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+.tc-plugin input[type=checkbox]{width:16px;height:16px}
+.row-off td{opacity:.6}
+.limits{font-variant-numeric:tabular-nums}
+.addform{flex-wrap:wrap;margin-bottom:12px}
+.editrow td{background:#F8FAFC}
+</style>
+<div id="mockup-content"><div class="shell"><div class="side"><div class="brand">TomorrowCommerce</div><div class="nav"><a class="on" data-screen="product-shipping-tab-editor"><span class="ico">&#9638;</span>Products</a><a class="" data-screen=""><span class="ico">&#9776;</span>Categories</a><a class="" data-screen=""><span class="ico">&#9881;</span>Plugins</a><div class="sep">Plugins</div><a class=" nav-warehouse" data-screen=""><span class="ico">&#127970;</span>Warehouse</a><a class=" nav-shipping" data-screen="shipping-configuration-editor"><span class="ico">&#128666;</span>Shipping</a></div></div><div class="main"><div class="crumbs">Products / Garden Bench Oak <span class="role">editor</span></div>
+<div class="pcard"><div class="pimg"></div><div><h1>Garden Bench Oak</h1><div class="muted">SKU GB-OAK-120 · Garden · 899.00 PLN</div></div></div>
+<div class="tabs"><span>Stock Info</span><span>Box Size</span><span>AI Description</span><span class="on">Shipping</span></div>
+<div class="frame" style="border-top-left-radius:0"><span class="frame-tag">plugin iframe :3010 /product-shipping</span><div class="tc-plugin" style="padding:1.5rem"><h3 style="margin:0 0 1rem">Delivery methods for this product</h3><p class="boxline">No box dimensions — size check unavailable. Set them in the <strong>Box Size</strong> tab.</p><table class="tc-table"><thead><tr><th>Available</th><th>Carrier</th><th>Method</th><th>Max (cm)</th><th>Size check</th></tr></thead><tbody><tr class=""><td><label class="cb"><input type="checkbox" checked  aria-label="Available: DHL Kurier"/></label></td><td>DHL</td><td>DHL Kurier</td><td class="limits">—</td><td><span class="muted">No dimensions</span></td></tr><tr class=""><td><label class="cb"><input type="checkbox" checked  aria-label="Available: DHL Paleta"/></label></td><td>DHL</td><td>DHL Paleta</td><td class="limits">120 × 80 × 180</td><td><span class="muted">No dimensions</span></td></tr><tr class=""><td><label class="cb"><input type="checkbox" checked  aria-label="Available: DPD Classic"/></label></td><td>DPD</td><td>DPD Classic</td><td class="limits">175 × 80 × 60</td><td><span class="muted">No dimensions</span></td></tr><tr class=""><td><label class="cb"><input type="checkbox"   aria-label="Available: InPost Paczkomat"/></label></td><td>InPost</td><td>InPost Paczkomat</td><td class="limits">64 × 38 × 41</td><td><span class="muted">No dimensions</span></td></tr><tr class=""><td><label class="cb"><input type="checkbox" checked  aria-label="Available: InPost Kurier"/></label></td><td>InPost</td><td>InPost Kurier</td><td class="limits">80 × 50 × 35</td><td><span class="muted">No dimensions</span></td></tr><tr class="row-off"><td><label class="cb"><input type="checkbox" checked disabled aria-label="Available: Pocztex Kurier"/></label></td><td>Poczta Polska</td><td>Pocztex Kurier</td><td class="limits">60 × 50 × 30</td><td><span class="tc-badge">Inactive</span></td></tr></tbody></table><div class="tc-flex" style="margin-top:1rem"><button class="tc-primary-button save-btn">Save</button><span class="muted">1 of 6 methods disabled for this product</span></div></div></div></div></div></div>
+  </main>
+
+  <script>
+    // SSE client for live refresh. It must NOT hijack the user's location — during a
+    // multi-screen batch that would repeatedly yank the browser to the newest screen and
+    // make it impossible to browse the gallery. On the gallery/latest we reload in place
+    // (so new cards appear live); on an individual screen we show a dismissible toast so a
+    // reader is never interrupted mid-review.
+    const statusEl = document.getElementById('status');
+    const evtSource = new EventSource('/events');
+    function showRefreshToast() {
+      if (document.getElementById('refresh-toast')) return;
+      const t = document.createElement('button');
+      t.id = 'refresh-toast';
+      t.textContent = '↻ Screens updated — click to refresh';
+      t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;'
+        + 'background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 16px;font:600 13px Inter,sans-serif;'
+        + 'cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35)';
+      t.onclick = function(){ window.location.reload(); };
+      document.body.appendChild(t);
+    }
+    evtSource.onmessage = function(e) {
+      if (e.data !== 'refresh') return;
+      if (window.location.pathname === '/' || window.location.pathname === '/latest') {
+        window.location.reload();
+      } else {
+        showRefreshToast();
+      }
+    };
+    evtSource.onopen = function() {
+      statusEl.textContent = 'Connected';
+      statusEl.className = '';
+    };
+    evtSource.onerror = function() {
+      statusEl.textContent = 'Reconnecting...';
+      statusEl.className = 'disconnected';
+    };
+
+    // Annotation overlay rendering
+    const annotations = [{"selector":".boxline","text":"No box-size data: no size warnings, badges show 'No dimensions'"}];
+    function renderAnnotations() {
+      const container = document.getElementById('mockup-container');
+      annotations.forEach(function(ann) {
+        if (!ann.selector) return;
+        const target = container.querySelector(ann.selector);
+        if (!target) return;
+        const text = ann.note || ann.text || '';
+        if (!text) return;
+        const rect = target.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const tooltip = document.createElement('div');
+        tooltip.className = 'annotation-tooltip';
+        tooltip.textContent = text;
+        tooltip.style.top = (rect.bottom - containerRect.top + 6) + 'px';
+        tooltip.style.left = (rect.left - containerRect.left) + 'px';
+        container.appendChild(tooltip);
+      });
+    }
+    if (annotations.length > 0) requestAnimationFrame(renderAnnotations);
+
+    // Annotation toggle with localStorage persistence
+    var toggleBtn = document.getElementById('annotation-toggle');
+    var container = document.getElementById('mockup-container');
+    var annotationsVisible = localStorage.getItem('annotations-visible') !== 'false'; // default: true
+    function updateToggle() {
+      if (annotationsVisible) {
+        container.classList.remove('annotations-hidden');
+        toggleBtn.classList.add('active');
+      } else {
+        container.classList.add('annotations-hidden');
+        toggleBtn.classList.remove('active');
+      }
+    }
+    updateToggle();
+    toggleBtn.addEventListener('click', function() {
+      annotationsVisible = !annotationsVisible;
+      localStorage.setItem('annotations-visible', annotationsVisible);
+      updateToggle();
+    });
+
+    // Screen-to-screen navigation: clicking elements with data-screen="slug" navigates to that screen
+    document.getElementById('mockup-container').addEventListener('click', function(e) {
+      var target = e.target.closest('[data-screen]');
+      if (target) {
+        e.preventDefault();
+        window.location.href = '/screen/' + target.getAttribute('data-screen');
+      }
+    });
+  </script>
+</body>
+</html>

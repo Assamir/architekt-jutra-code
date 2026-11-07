@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Specification — Shipping Plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+/* extensions */
+header .meta { color:var(--dim); font-size:12.5px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.grid3 { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+@media (max-width:720px) { .grid2 { grid-template-columns:1fr; } }
+.card h3 { margin:0 0 8px; font-size:14px; }
+.card ul { margin:0; padding-left:18px; }
+.in { border-left:4px solid var(--ok); } .out { border-left:4px solid var(--crit); }
+.story { border-left:4px solid var(--accent); }
+.group-row td { background:var(--accent-soft); font-weight:650; font-size:12.5px; }
+.toc { font-size:13px; color:var(--dim); margin:10px 0 0; }
+.chip { display:inline-block; margin:2px 4px 2px 0; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">← Dashboard</a>
+  <span class="here">Spec</span>
+  <a href="implementation-plan.html">Plan</a>
+  <a href="../verification/implementation-verification.html">Verification</a>
+  <a href="spec.md" target="_blank" rel="noopener" class="md">md twin ↗</a>
+</nav>
+
+<header>
+  <span class="badge">Specification</span>
+  <h1>Shipping Plugin (<code>plugins/shipping</code>, port 3010)</h1>
+  <div class="meta">Generated 2026-11-07, revised after spec audit · task <code>2026-11-07-shipping-plugin</code> · source <a href="spec.md" target="_blank" rel="noopener">spec.md</a> · audit <a href="../verification/spec-audit.md" target="_blank" rel="noopener">spec-audit.md</a></div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b>28</b><span>requirements</span></div>
+  <div class="tile"><b>11</b><span>reused sources</span></div>
+  <div class="tile"><b>6</b><span>new components</span></div>
+  <div class="tile"><b>10</b><span>mockup refs</span></div>
+  <div class="tile"><b>12/12</b><span>audit findings resolved</span></div>
+  <div class="tile"><b>low-med</b><span>risk</span></div>
+</div>
+
+<section class="tldr card">
+  <h2 style="margin-top:0">TL;DR</h2>
+  <p>New iframe plugin <code>plugins/shipping</code> (Vite + React, port 3010, <code>strictPort</code>). Carriers and delivery methods are stored as plugin objects keyed by <code>PluginObject.objectId</code> (a UUID). Each product's opt-outs go in pluginData <code>{disabledMethodIds}</code>, so the backend does not change.</p>
+  <p>A sidebar "Shipping" page manages carriers and methods: add, edit inline with the same id, toggle active, delete. A product "Shipping" tab lets editors untick methods, warned by a rotation-aware size check against box-size dimensions. The tab reloads box and method data on focus and keeps unsaved ticks.</p>
+  <p>The only host code change is <code>truck: Truck</code> in <code>ICON_MAP</code>, with a Vitest test. It must add no lint problems to the existing baseline of 16. Six docs record the port rule: 3004–3009 for demo and utility plugins, 3010 and up for business modules.</p>
+
+  <h3>Key Decisions</h3>
+  <table>
+    <tr><th>Decision</th><th>Rationale</th></tr>
+    <tr><td>Opt-out in pluginData <code>{disabledMethodIds}</code>; <code>removeData</code> when the list is empty</td><td>Every active method is available unless unticked, and product JSONB stays minimal</td></tr>
+    <tr><td>Domain id = <code>PluginObject.objectId</code> (UUID), never <code>PluginObject.id</code> (numeric DB key)</td><td><code>carrierId</code> and <code>disabledMethodIds</code> hold objectIds. <code>sdk.ts</code> mistypes <code>id</code>, so a mapper test guards this</td></tr>
+    <tr><td>Inline edit via <code>objects.save</code> with the same id</td><td>Delete+recreate would change the UUID and silently drop per-product opt-outs</td></tr>
+    <tr><td>Warn only; sorted-dimension (rotation) fit check; a missing limit means unlimited</td><td>The editor stays in control</td></tr>
+    <tr><td>Badge precedence: Inactive &gt; No dimensions &gt; No limits &gt; Fits / Too large</td><td>Matches the mockups</td></tr>
+    <tr><td>Inactive = method inactive, or carrier inactive or missing; the opt-out is preserved</td><td>The opt-out re-applies on reactivation</td></tr>
+    <tr><td>Reload on focus: re-fetch the product and both lists on window <code>focus</code> / <code>visibilitychange</code></td><td>Keeps unsaved ticks. The selection is reset only on the initial load and after Save</td></tr>
+    <tr><td>Admin = <code>PERMISSION_EDIT</code>; local <code>canEdit(token)</code> with base64url decoding</td><td>The backend already enforces EDIT with 403</td></tr>
+    <tr><td>Carrier delete blocked while methods reference it; the guard re-lists methods first</td><td>It never acts on stale state</td></tr>
+    <tr><td>No delete confirmation</td><td>Consistent with the warehouse plugin</td></tr>
+    <tr><td>Selects list active carriers; the edit row also includes the current carrier</td><td>Follows the add-form mockup; the edit value is always representable</td></tr>
+    <tr><td>One edit row at a time across both config tables; another Edit discards the draft</td><td>Simple, predictable editing state</td></tr>
+    <tr><td>Lint gate = no new problems (baseline 16 problems / 14 errors, incl. <code>Icons.tsx:26:17</code>)</td><td>The pre-existing errors are out of scope</td></tr>
+    <tr><td>Ports: 3004–3009 for demo and utility plugins, 3010+ for business modules (shipping 3010, next 3011)</td><td>User decision</td></tr>
+    <tr><td>Mockups are binding for layout, components and states; spec rules win over the mockups' sample data and wording</td><td>Resolves the row-order and hint-content conflicts</td></tr>
+    <tr><td>Copy patterns (warehouse, box-size, ai-description); share only <code>plugins/sdk.ts</code></td><td>Plugin standard: no cross-plugin imports</td></tr>
+    <tr><td>Mockup helper classes (<code>muted</code>, <code>row-off</code>, …) not reproduced</td><td>Plain elements, <code>tc-*</code> classes and inline layout instead; <code>plugin-ui.css</code> does not change</td></tr>
+  </table>
+
+  <h3>Open Questions / Risks</h3>
+  <ul>
+    <li><span class="sev warning">warning</span>Manifest registration is manual (admin token). Size warnings work only when box-size is registered under the id <code>box-size</code>.</li>
+    <li><span class="sev warning">warning</span>Reload-on-focus trigger: host tab iframes stay mounted and are switched with <code>display</code>, so switching tabs probably fires neither <code>focus</code> nor <code>visibilitychange</code> in the iframe. The refresh then runs on the first click inside the tab, or when the browser tab becomes visible again. Unsaved ticks are kept. Check this in the walkthrough.</li>
+    <li><span class="sev info">info</span>Concurrent editors can overwrite each other (full-replace saves, no versioning). This is acceptable at this scale.</li>
+    <li><span class="sev info">info</span>Error messages are terse (empty <code>statusText</code>). A contextual prefix is shown, e.g. "Failed to save: 403".</li>
+    <li><span class="sev info">info</span>Follow-ups: restriction visibility on the product list or detail info, MCP exposure, checkout consumers, and the <code>../../sdk</code> page import path in <code>plugins/CLAUDE.md</code>.</li>
+    <li><span class="sev info">info</span>Resolved: H1, M1–M3 and L1–L8. See <a href="#audit">Audit Resolution</a>.</li>
+  </ul>
+  <p class="toc">Contents: <a href="#scope">Scope</a> · <a href="#stories">User Stories</a> · <a href="#requirements">Requirements</a> · <a href="#visual">Visual Design</a> · <a href="#reuse">Reuse vs New</a> · <a href="#technical">Technical Approach</a> · <a href="#testing">Testing &amp; Standards</a> · <a href="#success">Success Criteria</a> · <a href="#audit">Audit Resolution</a></p>
+</section>
+
+<main>
+<h2 id="scope">Goal &amp; Scope</h2>
+<div class="card">Let editors maintain a system-wide catalogue of carriers and delivery methods, and turn individual methods off per product, warned when the product's box exceeds a method's size limits, all as an isolated plugin on port 3010.</div>
+<div class="grid2">
+  <div class="card in"><h3>In scope</h3><ul>
+    <li>The <code>plugins/shipping</code> app (scaffold, manifest, domain, 2 pages)</li>
+    <li>Carrier and method CRUD with inline edit (same objectId), active toggles, blocked carrier delete</li>
+    <li>Product tab: availability checkboxes, size-check badges, warning hint, save / remove data, reload on focus</li>
+    <li>Permission gating (EDIT) and read-only variants</li>
+    <li>Host <code>ICON_MAP</code> truck entry and its Vitest test</li>
+    <li>Plugin Vitest tests for domain helpers (16 tests)</li>
+    <li>Docs: plugin-development.md, INDEX.md, tech-stack.md, plugins/CLAUDE.md, CLAUDE.md, README.md</li>
+  </ul></div>
+  <div class="card out"><h3>Out of scope</h3><ul>
+    <li>Backend, schema, security, SDK (incl. the <code>PluginObject.id</code> type) or <code>plugin-ui.css</code> changes</li>
+    <li>Weight limits; seed or default carriers</li>
+    <li>Restriction visibility outside the product tab; MCP tools; checkout or order consumers</li>
+    <li>Auto-disabling by size; bulk per-product operations; cascade carrier delete; delete confirmations</li>
+    <li>Host-side cross-plugin notifications or an iframe reload on tab switch</li>
+    <li>A general <code>resolveIcon</code> fix; pre-existing host lint problems; the <code>plugins/CLAUDE.md</code> sdk import path fix</li>
+  </ul></div>
+</div>
+
+<h2 id="stories">User Stories</h2>
+<div class="grid3">
+  <div class="card story"><b>Editor</b>: add carriers (DHL, DPD, InPost, Poczta Polska…) and methods with optional max L×W×H, so the system knows which shipping options exist.</div>
+  <div class="card story"><b>Editor</b>: rename carriers and edit a method's carrier, name and limits in place, so typos and limit changes don't wipe product restrictions.</div>
+  <div class="card story"><b>Editor</b>: deactivate a carrier or method without deleting it, to suspend it and keep per-product settings.</div>
+  <div class="card story"><b>Editor</b>: untick methods on a product's Shipping tab and see which ones its box is too large for, so unsuitable methods are not offered.</div>
+  <div class="card story"><b>Viewer</b>: see carriers, methods and per-product availability read-only, without being able to change them.</div>
+</div>
+
+<h2 id="requirements">Requirements</h2>
+<div class="card">
+<p><b>Sorting rule</b> (reqs 1, 6, 16, 19): carriers sort by name; methods sort by carrier display name, then method name. All comparisons are case-insensitive. A missing carrier sorts as "Unknown carrier". Mockup row order does not override this rule.</p>
+<table>
+  <tr><th>#</th><th>Requirement</th><th>Priority</th></tr>
+  <tr class="group-row"><td colspan="3">Carriers (ShippingConfigPage)</td></tr>
+  <tr><td>1</td><td>List sorted by name: Name, Methods (count), Status, actions</td><td><span class="badge">must</span></td></tr>
+  <tr><td>2</td><td>Add carrier: trimmed, non-empty name ("Carrier name is required."); <code>active: true</code>, UUID objectId</td><td><span class="badge">must</span></td></tr>
+  <tr><td>3</td><td>Active checkbox toggle, saved immediately with the same objectId</td><td><span class="badge">must</span></td></tr>
+  <tr><td>4</td><td>Inline edit: name + Active with Save / Cancel; same objectId. One edit row across both tables; another Edit discards the draft; save reloads and closes the edit; toggles elsewhere keep the draft</td><td><span class="badge">must</span></td></tr>
+  <tr><td>5</td><td>Delete re-lists methods first and is blocked with <code>tc-error</code>: singular "Cannot delete "&lt;name&gt;": it still has 1 delivery method. Delete or move it first." / plural "… it still has &lt;N&gt; delivery methods. Delete or move them first." There is no confirmation prompt</td><td><span class="badge">must</span></td></tr>
+  <tr class="group-row"><td colspan="3">Delivery methods (ShippingConfigPage)</td></tr>
+  <tr><td>6</td><td>List per the sorting rule. Limits shown as <code>L × W × H cm</code>, with <code>—</code> for a missing limit, or "No limit". A missing carrier shows "Unknown carrier"</td><td><span class="badge">must</span></td></tr>
+  <tr><td>7</td><td>Add form: carrier select (active carriers), name, optional L/W/H (aria-labelled). Validation messages for carrier, name and positive limits; empty limits omitted; <code>carrierId</code> = the carrier's objectId</td><td><span class="badge">must</span></td></tr>
+  <tr><td>8</td><td>Inline edit of carrier, name, limits and active; same objectId; full-object save. A missing carrier starts at "-- Carrier --" and must be chosen before saving</td><td><span class="badge">must</span></td></tr>
+  <tr><td>9</td><td>Active checkbox toggle, saved immediately</td><td><span class="badge">must</span></td></tr>
+  <tr><td>10</td><td>"Carrier inactive" badge next to the method's own toggle when the carrier is inactive or missing</td><td><span class="badge">must</span></td></tr>
+  <tr><td>11</td><td>Delete method (listed ids only, no confirmation); stale product ids ignored on read and pruned on save</td><td><span class="badge">must</span></td></tr>
+  <tr class="group-row"><td colspan="3">Product Shipping tab</td></tr>
+  <tr><td>12</td><td><code>String(productId)</code>; guard "No product context available."</td><td><span class="badge">must</span></td></tr>
+  <tr><td>13</td><td>Initial parallel load (token, carriers, methods, getData, getProduct); Loading / <code>tc-error</code>; the stored ids initialise the selection</td><td><span class="badge">must</span></td></tr>
+  <tr><td>14</td><td>Box line from <code>pluginData["box-size"]</code>, or "No box dimensions — size check unavailable. Set them in the Box Size tab." (kept, because req 28 refreshes the box)</td><td><span class="badge">must</span></td></tr>
+  <tr><td>15</td><td>Empty state: "No delivery methods configured. Add them in the Shipping section." Viewers see the same, without the read-only notice</td><td><span class="badge">must</span></td></tr>
+  <tr><td>16</td><td>Table: Available checkbox (aria-label), Carrier (or "Unknown carrier"), Method, Max (cm) (<code>—</code> per missing dimension, single <code>—</code> for no limits), Size check</td><td><span class="badge">must</span></td></tr>
+  <tr><td>17</td><td>Checked unless the id is in <code>disabledMethodIds</code>; changes stay local until Save</td><td><span class="badge">must</span></td></tr>
+  <tr><td>18</td><td>Badge precedence: Inactive (one badge even when the method and carrier are both inactive or the carrier is missing; checkbox disabled, opt-out kept) &gt; No dimensions &gt; No limits &gt; Fits / Too large</td><td><span class="badge">must</span></td></tr>
+  <tr><td>19</td><td><code>tc-error</code> hint naming the ticked, active, too-large methods in table order. Singular: <code>"&lt;name&gt;" is still available although the box exceeds its limits. Consider unticking it.</code> Plural: <code>"&lt;name1&gt;", "&lt;name2&gt;" are still available although the box exceeds their limits. Consider unticking them.</code> Live; viewers see it too</td><td><span class="badge">must</span></td></tr>
+  <tr><td>20</td><td>Save button and the counter "N of M methods disabled for this product"</td><td><span class="badge">must</span></td></tr>
+  <tr><td>21</td><td>Save prunes non-existent ids (keeps inactive) → <code>setData</code>, or <code>removeData</code> when empty. The Save label becomes "Saved!" for 2 s, and the selection resets to the saved list</td><td><span class="badge">must</span></td></tr>
+  <tr class="group-row"><td colspan="3">Product tab refresh</td></tr>
+  <tr><td>28</td><td>Reload on focus: on window <code>focus</code> / <code>visibilitychange</code> → visible, re-fetch the product, carriers and methods (not own data). The selection is unchanged and there is no Loading flash. No overlap with another refresh or a Save. On failure, "Failed to refresh shipping data: …" and the old data is kept. New methods are ticked unless already selected. Listeners are removed on unmount</td><td><span class="badge">must</span></td></tr>
+  <tr class="group-row"><td colspan="3">Permissions, errors, runtime</td></tr>
+  <tr><td>22</td><td>Write controls only when <code>canEdit</code> (JWT permissions contains "EDIT")</td><td><span class="badge">must</span></td></tr>
+  <tr><td>23</td><td>Viewer notices and status badges: Active / Inactive (method itself inactive, also when the carrier is inactive) / Inactive (carrier) (active method, carrier inactive or missing). Product checkboxes disabled, no Save or counter</td><td><span class="badge">must</span></td></tr>
+  <tr><td>24</td><td>try/catch around every SDK call. <code>tc-error</code> shows <code>&lt;context&gt;: &lt;trimmed err.message&gt;</code>, e.g. "Failed to save: 403", with the fallback "Unknown error". Buttons are disabled while a mutation runs</td><td><span class="badge">must</span></td></tr>
+  <tr><td>25</td><td>Port 3010 with strictPort; manifest name "Shipping", version "1.0.0", description "Carriers, delivery methods and per-product shipping restrictions", url <code>http://localhost:3010</code>; menu.main (Shipping, truck, <code>/</code>, 110); product.detail.tabs (Shipping, <code>/product-shipping</code>, 80)</td><td><span class="badge">must</span></td></tr>
+  <tr class="group-row"><td colspan="3">Host and docs</td></tr>
+  <tr><td>26</td><td><code>Icons.tsx</code>: import <code>Truck</code>, add <code>truck: Truck</code>; the pre-existing <code>Icons.tsx:26:17</code> lint error stays</td><td><span class="badge">must</span></td></tr>
+  <tr><td>27</td><td>Docs, with one port rule (3004–3009 demo and utility plugins, 3010+ business modules: shipping 3010, next 3011): plugin-development.md (l.56 prose, l.59 sample → 3011), INDEX.md l.109, tech-stack.md ~l.44–46, plugins/CLAUDE.md entry, root CLAUDE.md l.39 (append only), README tree + Quick Start</td><td><span class="badge">must</span></td></tr>
+</table>
+</div>
+
+<h2 id="visual">Visual Design</h2>
+<div class="card">
+<p>Mockups in <code>analysis/design-context/</code> are binding inputs. The implementation-planner will attach <code>Visual References</code> to UI task groups. They are hi-fi HTML on the host's <code>plugin-ui.css</code>. The implementation matches them in <b>layout, components and states</b>. Where mockup sample data or wording conflicts with a spec rule, the rule wins. The known conflicts are row order (Kurier sorts before Paczkomat) and hint content (it names every ticked, active, too-large method). The <code>row-off</code> greyed rows are not reproduced; the Inactive badges carry that state.</p>
+<table>
+  <tr><th>ID</th><th>Mockup</th><th>State / key elements</th></tr>
+  <tr><td><code>screen:shipping-config</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-editor.html">editor</a></td><td>Two <code>tc-section</code>s, add forms, tables, Active checkboxes, Edit / Delete, "Carrier inactive"</td></tr>
+  <tr><td><code>screen:shipping-config-edit</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-inline-edit-and-blocked-delete.html">inline edit + blocked delete</a></td><td>Carrier and method edit rows with Save / Cancel; blocked-delete <code>tc-error</code></td></tr>
+  <tr><td><code>screen:shipping-config-readonly</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-read-only-viewer.html">viewer</a></td><td>Read-only notice, status badges, no controls</td></tr>
+  <tr><td><code>screen:product-shipping-tab</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-editor.html">editor</a></td><td>Box line, checkbox table, badges, Save + counter</td></tr>
+  <tr><td><code>screen:product-shipping-tab-warning</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-too-large-method-still-enabled.html">too large still enabled</a></td><td><code>tc-error</code> hint above the table</td></tr>
+  <tr><td><code>screen:product-shipping-tab-nodims</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-no-box-dimensions.html">no box dimensions</a></td><td>"No dimensions" on every active row; no hint</td></tr>
+  <tr><td><code>screen:product-shipping-tab-readonly</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-read-only-viewer.html">viewer</a></td><td>Disabled checkboxes, hint shown, no Save or counter</td></tr>
+  <tr><td><code>screen:product-shipping-tab-empty</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-empty-state.html">empty state</a></td><td>Box line + "No delivery methods configured…"</td></tr>
+  <tr><td><code>component:size-check-badge</code></td><td><a href="../analysis/design-context/mockups/product-shipping-tab-editor.html">editor</a></td><td>Fits (success) / Too large (danger) / Inactive (badge) / No limits, No dimensions (text)</td></tr>
+  <tr><td><code>component:inline-edit-row</code></td><td><a href="../analysis/design-context/mockups/shipping-configuration-inline-edit-and-blocked-delete.html">inline edit</a></td><td><code>tc-input</code> / <code>tc-select</code> cells + Save / Cancel</td></tr>
+</table>
+</div>
+
+<h2 id="reuse">Reusable vs New Components</h2>
+<div class="grid2">
+  <div class="card in"><h3>Existing code to leverage</h3>
+  <table>
+    <tr><th>Source</th><th>Provides</th></tr>
+    <tr><td><code>plugins/warehouse/</code> index.html, package.json, tsconfig, vite.config, vite-env.d.ts, main.tsx</td><td>Scaffold to copy</td></tr>
+    <tr><td><code>plugins/warehouse/manifest.json</code></td><td>Manifest shape (name, version, description, url, extension points)</td></tr>
+    <tr><td><code>plugins/warehouse/src/pages/WarehousePage.tsx</code></td><td>Objects CRUD pattern, UUIDs, tables, delete without confirmation</td></tr>
+    <tr><td><code>plugins/warehouse/src/domain.ts</code></td><td><code>toX</code> mapper pattern using <code>obj.objectId</code></td></tr>
+    <tr><td><code>plugins/box-size/src/pages/ProductBoxTab.tsx</code></td><td>getData / setData / removeData, "Saved!" button-label flash (without the swallowed load error)</td></tr>
+    <tr><td><code>plugins/box-size/src/domain.ts</code></td><td><code>BoxDimensions</code> shape (redeclared)</td></tr>
+    <tr><td><code>plugins/ai-description/src/pages/product-tab.tsx</code></td><td><code>canEdit</code> flow</td></tr>
+    <tr><td><code>src/main/frontend/src/auth/AuthContext.tsx</code> <code>decodeJwtPayload</code></td><td>Correct base64url decoding (copied)</td></tr>
+    <tr><td><code>plugins/sdk.ts</code></td><td><code>getSDK</code>, <code>PluginObject</code> (its <code>id</code> is the numeric DB key; ignored)</td></tr>
+    <tr><td><code>src/main/frontend/public/assets/plugin-ui.css</code></td><td><code>tc-*</code> classes</td></tr>
+    <tr><td>Host Vitest (<code>src/main/frontend/src/test/</code>)</td><td>Icon test infrastructure; explicit <code>vitest</code> imports</td></tr>
+  </table></div>
+  <div class="card out" style="border-left-color:var(--warn)"><h3>New components required</h3>
+  <table>
+    <tr><th>Component</th><th>Why new</th></tr>
+    <tr><td><code>plugins/shipping/</code> scaffold + manifest</td><td>Each plugin is an independent npm project</td></tr>
+    <tr><td><code>src/domain.ts</code>: <code>toCarrier</code>, <code>toShippingMethod</code> (id from objectId), <code>toBoxDimensions</code>, <code>toDisabledMethodIds</code>, <code>sizeCheck</code>, <code>pruneDisabledIds</code>, <code>canEdit</code></td><td>Shipping-specific logic; kept pure so it is testable</td></tr>
+    <tr><td><code>ShippingConfigPage.tsx</code></td><td>New menu.main UI</td></tr>
+    <tr><td><code>ProductShippingTab.tsx</code> (incl. the reload-on-focus listener)</td><td>New product.detail.tabs UI; no existing focus-refresh pattern</td></tr>
+    <tr><td><code>src/domain.test.ts</code></td><td>The sibling Vite plugins have no tests</td></tr>
+    <tr><td><code>src/test/icons.test.ts</code> (host)</td><td>No test covers <code>resolveIcon</code> today</td></tr>
+  </table></div>
+</div>
+
+<h2 id="technical">Technical Approach</h2>
+<div class="card">
+<table>
+  <tr><th>Entity</th><th>Storage</th><th>Domain id</th><th>Shape</th></tr>
+  <tr><td>Carrier</td><td>objects <code>carrier</code></td><td><code>PluginObject.objectId</code> (UUID)</td><td><code>{name, active}</code></td></tr>
+  <tr><td>Delivery method</td><td>objects <code>shipping-method</code></td><td><code>PluginObject.objectId</code> (UUID)</td><td><code>{carrierId, name, active, maxLengthCm?, maxWidthCm?, maxHeightCm?}</code></td></tr>
+  <tr><td>Product restriction</td><td><code>plugin_data.shipping</code></td><td>(product id)</td><td><code>{disabledMethodIds: string[]}</code></td></tr>
+</table>
+<p><code>PluginObject.id</code> is the numeric DB key and is never used as a domain id. Using it would create duplicates on edit, make deletes return 404, and corrupt opt-outs.</p>
+<details><summary>Flow, fit check and runtime rules</summary>
+<ul>
+  <li><b>Flow</b>: the iframe calls the SDK, which sends a postMessage to <code>PluginMessageHandler</code>. The handler checks the exact origin <code>http://localhost:3010</code> and calls the REST API with the user's JWT. READ is required on GETs and EDIT on writes.</li>
+  <li><b>Writes</b>: <code>objects.save(type, objectId, fullData)</code>, then both lists reload. Edits and toggles reuse the objectId.</li>
+  <li><b>Fit check</b>: sort the box dimensions in descending order. Replace each missing limit with +∞, then sort the limits in descending order. The box fits when each box dimension is ≤ the limit at the same position. With all three limits missing, the result is "no-limits". Example: box (120, 48, 12) vs limits (64, 41, 38) gives too-large; vs (∞, ∞, 130) it fits.</li>
+  <li><b>Effective active</b>: <code>method.active &amp;&amp; carrier?.active === true</code>.</li>
+  <li><b>Product tab state</b>: the selection is set from stored data on the initial load and after Save, and otherwise changes only through checkbox toggles. Refreshes replace the product, carrier and method data, never the selection.</li>
+  <li><b>Async rules</b>: <code>Promise.all</code> for loads, <code>void</code>-wrapped handlers and listeners, no <code>as unknown as</code> casts.</li>
+  <li><b>Pitfalls</b>: <code>productId</code> arrives as a number; avoid <code>/detail</code> and <code>/edit</code> paths; errors are status text only (often empty); a 401 redirects the host; deleting a missing object returns 404; tab iframes stay mounted, so the tab refreshes itself.</li>
+  <li><b>Registration</b>: <code>PUT /api/plugins/shipping/manifest</code> with a <code>PERMISSION_PLUGIN_MANAGEMENT</code> token (documented).</li>
+</ul>
+</details>
+</div>
+
+<h2 id="testing">Testing &amp; Standards</h2>
+<div class="card">
+<p>2-8 focused tests per implementation step group. Verification runs only the new tests.</p>
+<table>
+  <tr><th>Group</th><th>File</th><th>Tests</th><th>Cases</th></tr>
+  <tr><td>Size check</td><td><code>plugins/shipping/src/domain.test.ts</code></td><td>8</td><td><code>sizeCheck</code>: fits, too large, fits only rotated, partial limits, no limits, missing box; <code>toBoxDimensions</code>: complete, missing or partial</td></tr>
+  <tr><td>Mappers &amp; permission</td><td><code>plugins/shipping/src/domain.test.ts</code></td><td>8</td><td>Mappers: <code>active</code> default, invalid limits dropped, <code>id</code> from <code>objectId</code> not the numeric <code>id</code>; <code>pruneDisabledIds</code>; <code>canEdit</code>: EDIT, READ-only, base64url <code>-</code>/<code>_</code>, malformed or null</td></tr>
+  <tr><td>Host icon</td><td><code>src/main/frontend/src/test/icons.test.ts</code></td><td>3</td><td>truck → Truck, warehouse unchanged, unknown → Plug</td></tr>
+</table>
+<ul>
+  <li>Plugin tests import <code>describe</code> / <code>it</code> / <code>expect</code> from <code>"vitest"</code> explicitly, with no globals, because <code>tsc -b</code> type-checks <code>src</code>, including the test file.</li>
+  <li><b>Pages</b>: <code>npm run build</code> (<code>tsc -b</code> must pass) plus a browser walkthrough of the 8 mockup states as editor and viewer, including reload on focus after a Box Size edit.</li>
+  <li><b>Lint gate</b>: no new host lint problems. Baseline: 16 problems (14 errors, 2 warnings) from <code>npx eslint .</code>, including the pre-existing, out-of-scope <code>Icons.tsx:26:17</code> <code>react-refresh/only-export-components</code>.</li>
+</ul>
+<details><summary>Standards applied</summary>
+<div>
+<span class="chip"><code>plugins/plugin-development.md</code></span>
+<span class="chip"><code>backend/plugin-auth.md</code></span>
+<span class="chip"><code>frontend/components.md</code></span>
+<span class="chip"><code>frontend/css.md</code></span>
+<span class="chip"><code>frontend/tooling.md</code></span>
+<span class="chip"><code>frontend/accessibility.md</code></span>
+<span class="chip"><code>testing/frontend-testing.md</code></span>
+<span class="chip"><code>global/minimal-implementation.md</code></span>
+<span class="chip"><code>global/error-handling.md</code></span>
+<span class="chip"><code>global/conventions.md</code></span>
+</div>
+</details>
+</div>
+
+<h2 id="success">Success Criteria</h2>
+<div class="card">
+<ul>
+  <li>The plugin's <code>npm run build</code> (<code>tsc -b</code> incl. the test file) and <code>npm test</code> (16 tests) pass. The host icon test (3) passes. There are no new lint problems against the baseline of 16 problems (14 errors), and <code>Icons.tsx:26:17</code> is pre-existing.</li>
+  <li>The plugin is served on :3010, and a second instance fails because of strictPort. The sidebar shows "Shipping" with the Truck icon, and products show a Shipping tab.</li>
+  <li>Editor: CRUD with the objectId unchanged on edit and no duplicates; one edit row at a time; blocked carrier delete with the singular or plural message.</li>
+  <li>Editor: with box 120×12×48 and both InPost methods ticked, Kurier (80×50×35) and Paczkomat (64×38×41) are "Too large", Kurier sorts first, and the plural hint names both. Unticking one leaves the singular hint.</li>
+  <li>Editor: an unticked method persists after reload, stored as objectIds, and "Saved!" shows for 2 s. Ticking everything removes the data.</li>
+  <li>Editor: editing or renaming a disabled method keeps it disabled. Deactivating it shows "Inactive" with the opt-out preserved, and reactivating re-applies it.</li>
+  <li>Editor: after a Box Size edit, returning to and focusing the Shipping tab updates the box line and badges, and unsaved ticks are kept.</li>
+  <li>Viewer: no write controls, disabled checkboxes, and the read-only notices are shown (except in the product-tab empty state).</li>
+  <li>All 8 screens and 2 components match their mockups in layout, components and states. Where a mockup's sample data or wording conflicts with a spec rule, the rule wins.</li>
+  <li>All six docs reflect shipping on 3010 and the port rule: 3004–3009 for demo and utility plugins, 3010+ for business modules (next 3011).</li>
+</ul>
+</div>
+
+<h2 id="audit">Audit Resolution</h2>
+<div class="card">
+<p>Source: <a href="../verification/spec-audit.md" target="_blank" rel="noopener">verification/spec-audit.md</a>.</p>
+<table>
+  <tr><th>ID</th><th>Finding</th><th>Resolution</th></tr>
+  <tr><td><span class="sev critical">H1</span></td><td>The "host <code>npm run lint</code> passes" criterion cannot be met</td><td><span class="pass">resolved</span>: replaced with "no new lint problems" against the recorded baseline of 16 (14 errors), incl. <code>Icons.tsx:26:17</code>. The plugin must pass <code>tsc -b</code></td></tr>
+  <tr><td><span class="sev warning">M1</span></td><td>The domain id field is unspecified</td><td><span class="pass">resolved</span>: id = <code>PluginObject.objectId</code>, never <code>PluginObject.id</code>. Mapper test added</td></tr>
+  <tr><td><span class="sev warning">M2</span></td><td>The product tab goes stale</td><td><span class="pass">resolved</span>: reload on focus (req 28) keeps unsaved ticks. The Box Size hint is kept, and the trigger caveat is listed under risks</td></tr>
+  <tr><td><span class="sev warning">M3</span></td><td>The mockup wording criterion conflicts with the rules; the plural hint is unspecified</td><td><span class="pass">resolved</span>: the criterion now covers layout, components and states, with rules winning. Case-insensitive sorting rule; exact singular and plural hint sentences</td></tr>
+  <tr><td><span class="sev info">L1</span></td><td>Ambiguous port rule</td><td><span class="pass">resolved</span>: 3004–3009 for demo and utility plugins, 3010+ for business modules (next 3011); the sample uses 3011</td></tr>
+  <tr><td><span class="sev info">L2</span></td><td><code>tech-stack.md</code> is not updated</td><td><span class="pass">resolved</span>: added (~l.44–46); six docs</td></tr>
+  <tr><td><span class="sev info">L3</span></td><td>Blocked-delete pluralisation</td><td><span class="pass">resolved</span>: singular and plural sentences (req 5)</td></tr>
+  <tr><td><span class="sev info">L4</span></td><td>Edge states</td><td><span class="pass">resolved</span>: "Unknown carrier" + Inactive; a single Inactive badge on the tab; toggle + "Carrier inactive" on the config page; viewer Inactive / Inactive (carrier); <code>—</code> per missing limit, +∞ before sorting; viewer empty state without the notice</td></tr>
+  <tr><td><span class="sev info">L5</span></td><td>Inline-edit details</td><td><span class="pass">resolved</span>: one edit row across tables, another Edit discards, save closes, toggles keep the draft; "Saved!" replaces the Save label for 2 s; no delete confirmation</td></tr>
+  <tr><td><span class="sev info">L6</span></td><td>Manifest top-level fields</td><td><span class="pass">resolved</span>: name "Shipping", version "1.0.0", description set</td></tr>
+  <tr><td><span class="sev info">L7</span></td><td>Terse errors</td><td><span class="pass">resolved</span>: a context prefix plus the trimmed message as is (e.g. "Failed to save: 403"), with the fallback "Unknown error"</td></tr>
+  <tr><td><span class="sev info">L8</span></td><td>Test wiring and count</td><td><span class="pass">resolved</span>: explicit <code>vitest</code> imports, no globals; 16 tests in two groups of 8</td></tr>
+</table>
+</div>
+</main>
+</body>
+</html>

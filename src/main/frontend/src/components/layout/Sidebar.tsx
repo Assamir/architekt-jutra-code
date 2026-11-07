@@ -94,7 +94,7 @@ export function Sidebar() {
         {hasPluginManagement && (
           <NavItem to="/plugins" label="Plugins" icon={PluginsIcon} />
         )}
-        {hasPluginManagement && <PluginMenuItems />}
+        <PluginMenuItems />
       </Flex>
     </Box>
   );

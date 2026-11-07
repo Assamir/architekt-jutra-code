@@ -1,0 +1,177 @@
+orchestrator:
+  started_phase: phase-1
+  completed_phases: [phase-1, phase-2, phase-4, phase-5, phase-6, phase-7, phase-8, phase-10, phase-11, phase-12, phase-13, phase-14]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    sequential: false
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    skip_test_suite: false
+    e2e_enabled: true
+    user_docs_enabled: true
+    code_review_enabled: false
+    pragmatic_review_enabled: false
+    reality_check_enabled: false
+    production_check_enabled: true
+  created: "2026-11-07T11:53:50Z"
+  updated: "2026-11-07T14:27:32Z"
+  task_path: .maister/tasks/development/2026-11-07-shipping-plugin
+  task_ids: {}
+
+task:
+  title: Shipping plugin (carriers, delivery methods, per-product restrictions, port 3010)
+  description: >-
+    Build a logistics plugin: (1) global management of carriers and delivery methods
+    (DHL, DPD, InPost, Poczta etc.) for the whole system; (2) per-product restriction of
+    shipping methods - an administrator can disable a method for a product that does not
+    fit its standard (e.g. oversized); (3) plugin dev server on port 3010 to keep it
+    separate from future modules. Pre-agreed decisions (plan mode): opt-out model stored
+    as product pluginData {disabledMethodIds}; methods carry optional max LxWxH (cm) and
+    the product tab warns (no auto-disable) using box-size plugin dimensions; admin =
+    PERMISSION_EDIT (no backend changes, UI hides write controls via JWT); port 3010 with
+    strictPort and docs updated to reserve 3010+ for new business modules; no weight limit.
+    Initial plan: analysis/initial-plan.md
+  status: completed
+  tags: [plugin, shipping, frontend]
+  priority: null
+
+project_context:
+  project_doc_paths:
+    - .maister/docs/project/tech-stack.md
+    - .maister/docs/project/architecture.md
+
+task_context:
+  risk_level: low-medium
+  clarifications_resolved: true
+  scope_expanded: true
+  tech_clarified: true
+  architecture_decision: pure iframe plugin over existing plugin storage (objects carrier/shipping-method + pluginData disabledMethodIds); host change only ICON_MAP
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: true
+  research_reference:
+    path: null
+    research_question: null
+    research_type: null
+    confidence_level: null
+  design_reference:
+    source: phase-4-mockup-studio
+    product_design_path: null
+    mockup_count: 8
+    has_brief: false
+    index_path: analysis/design-context/INDEX.md
+  design_resources:
+    ran: true
+    standards: [.maister/docs/standards/plugins/plugin-development.md, .maister/docs/standards/frontend/css.md, .maister/docs/standards/frontend/components.md, .maister/docs/standards/frontend/accessibility.md, .maister/docs/standards/frontend/responsive.md]
+    design_system: [src/main/frontend/public/assets/plugin-ui.css, src/main/frontend/src/theme/index.ts, lucide-react]
+    skill_hints: [design:design-critique, design:accessibility-review]
+    found_any: true
+  phase_summaries:
+    codebase_analysis:
+      summary: Host already supports objects, per-product pluginData, product reads incl. box-size data and EDIT-gated writes; no backend changes. Only host change is adding truck to ICON_MAP; plugin is a near-copy of warehouse plus ai-description canEdit.
+      key_files: [plugins/warehouse, plugins/box-size/src/domain.ts, plugins/ai-description/src/pages/product-tab.tsx, plugins/sdk.ts, src/main/frontend/src/components/shared/Icons.tsx, src/main/frontend/src/plugins/PluginMessageHandler.ts, src/main/frontend/src/plugins/PluginFrame.tsx]
+      primary_language: TypeScript
+      decisions: []
+      risks: []
+      artifacts:
+        - {path: analysis/codebase-analysis.md, label: Codebase analysis, html: null}
+        - {path: analysis/clarifications.md, label: Clarifications, html: null}
+        - {path: analysis/initial-plan.md, label: Initial plan (plan mode), html: null}
+    clarifications: [truck added to host ICON_MAP, Vitest for plugin domain.ts, no seed carriers, opt-out model, limits+warning, admin=EDIT, port 3010 + docs]
+    gap_analysis:
+      summary: Plan holds; no backend changes, host change only truck in ICON_MAP. Critical gap - methods/carriers lack edit, delete+recreate silently drops per-product opt-outs. Extra docs spots - standard code sample port 3004, README, INDEX.md.
+      integration_points: [host sidebar/router menu.main, ProductDetailPage tab iframe (numeric productId), PluginMessageHandler exact origin, objects carrier/shipping-method + pluginData, cross-plugin read pluginData box-size, JWT EDIT decode, manifest registration PLUGIN_MANAGEMENT]
+      decisions:
+        - {decision: Inline edit for methods and carriers via objects.save with same id, rationale: preserves per-product opt-outs (critical gap)}
+        - {decision: Product tab empty-state hint text, rationale: one line no navigation API}
+        - {decision: Restriction visibility outside product out of scope, rationale: not requested; follow-up}
+        - {decision: Inactive methods shown with Inactive badge and disabled checkbox, rationale: opt-out preserved on reactivation; no new CSS}
+      risks: ["resolved: Method/carrier UPDATE missing - inline edit added to scope"]
+      artifacts:
+        - {path: analysis/gap-analysis.md, label: Gap analysis, html: null}
+        - {path: analysis/scope-clarifications.md, label: Scope clarifications, html: null}
+    scope_clarifications: {scope_expanded: true, summary: Added inline edit for methods and carriers; empty-state hint; inactive badge; list visibility out of scope.}
+    ui_mockups:
+      summary: 8 HTML screens (3 config page variants, 5 product tab variants) bound to plugin-ui.css tc-* classes; gallery at http://localhost:3847.
+      components_designed: [size-check-badge, inline-edit-row]
+      decisions: []
+      risks: []
+      artifacts:
+        - {path: analysis/design-context/INDEX.md, label: Design context index, html: null}
+        - {path: analysis/design-context/design-resources.md, label: Design resources, html: null}
+        - {path: analysis/design-context/mockups/shipping-configuration-editor.html, label: Mockup - Shipping config, html: analysis/design-context/mockups/shipping-configuration-editor.html}
+        - {path: analysis/design-context/mockups/product-shipping-tab-editor.html, label: Mockup - Product shipping tab, html: analysis/design-context/mockups/product-shipping-tab-editor.html}
+    design: {summary: 8 screens and 2 components indexed in analysis/design-context/INDEX.md; binding for spec and plan., screen_count: 8, component_count: 2, index_path: analysis/design-context/INDEX.md}
+    specification:
+      summary: 27 requirements; pure iframe plugin with opt-out pluginData, inline edit by same id, warn-only rotation-aware size check, EDIT gating; host ICON_MAP line; Vitest for domain helpers and icons; docs updates.
+      decisions:
+        - {decision: "Opt-out in pluginData {disabledMethodIds}; removeData when the list is empty", rationale: "Every active method is available unless unticked"}
+        - {decision: Inline edit via objects.save with the same id, rationale: delete+recreate drops opt-outs}
+        - {decision: Warn only; sorted-dimension fit check; missing limit means unlimited, rationale: editor stays in control}
+        - {decision: Badge precedence Inactive > No dimensions > No limits > Fits/Too large, rationale: matches mockups}
+        - {decision: Method inactive if it or its carrier is inactive or the carrier is missing; opt-out kept, rationale: re-applies on reactivation}
+        - {decision: Carrier delete blocked while methods reference it; guard re-lists methods first, rationale: avoids stale state}
+        - {decision: plugin-ui.css unchanged; mockup-only helper classes not reproduced, rationale: no inline hex allowed}
+      risks:
+        - Manual manifest registration; warnings need box-size registered as box-size
+        - Mockup inconsistency on editor-screen hint resolved by spec rule (req 19)
+        - Concurrent editors can overwrite each other (no versioning)
+        - plugin-development.md code sample moves to port 3011
+      artifacts:
+        - {path: analysis/requirements.md, label: Requirements, html: null}
+        - {path: implementation/spec.md, label: Specification, html: implementation/spec.html}
+    spec_audit:
+      summary: pass-with-concerns; 0 critical, 1 high (lint criterion unattainable, 16 pre-existing problems), 3 medium (id=objectId unstated, product tab stale after Box Size edit, mockup-wording criterion contradicts rules), 8 low.
+      decisions:
+        - {decision: Shipping tab reloads box size and lists on focus/visibilitychange keeping unsaved ticks, rationale: user choice for stale-tab finding M2}
+        - {decision: Ports 3004-3009 stay for small plugins; 3010+ business modules (next 3011), rationale: user choice L1}
+        - {decision: All audit findings applied to spec (28 requirements), rationale: user chose fix spec then plan}
+      risks: ["resolved: lint criterion now no new problems (baseline 16)", "resolved: domain id = objectId", "Reload-on-focus may not fire on host tab switch until first click inside the iframe"]
+      artifacts:
+        - {path: verification/spec-audit.md, label: Spec audit, html: null}
+        - {path: implementation/spec.md, label: Specification (revised), html: implementation/spec.html}
+    implementation_planning:
+      summary: 7 task groups, 44 steps, 19 tests (16 plugin domain + 3 host icon); chain 1->2->3,4 (3 and 4 sequential via main.tsx); 5 and 6 independent; 7 final review. 10/10 visual IDs covered.
+      decisions:
+        - {decision: Scaffold merged with size-check half of domain.ts, rationale: gives test-first work in group 1; 16 tests split 8+8}
+        - {decision: main.tsx starts with empty Routes; page groups add routes, rationale: no stub pages}
+        - {decision: Page groups verified by tsc -b build plus browser walkthrough checklist, rationale: spec excludes component tests}
+      risks: [Vitest/Vite 8 peer compatibility, Reload-on-focus may not fire on host tab switch, Root CLAUDE.md has uncommitted user edits - append only, Manual manifest registration before walkthroughs]
+      artifacts:
+        - {path: implementation/implementation-plan.md, label: Implementation plan, html: implementation/implementation-plan.html}
+        - {path: implementation/visual-coverage.md, label: Visual coverage, html: null}
+    implementation:
+      summary: 7/7 groups in 5 waves; 19/19 feature tests pass, plugin build clean, lint 16 (baseline), strictPort confirmed; full host suite 80/82 with 2 pre-existing failures.
+      decisions: []
+      risks: [npm audit 3 vulns (2 critical) in plugin dependency tree, plugins/*/dist not gitignored, browser walkthroughs not yet run, resolveIcon fallback broken for unmapped icons (pre-existing)]
+      artifacts:
+        - {path: implementation/work-log.md, label: Work log, html: null}
+    e2e:
+      summary: 23/23 scenarios passed (4 with issues), 0 console errors; visual fidelity 9 match / 1 minor / 0 drift.
+      decisions: []
+      decisions:
+        - {decision: Show plugin menu items to all logged-in users, rationale: editors are the shipping admins and must find the page}
+        - {decision: Validate badInput on limit fields, rationale: avoid silently saving no limit}
+      risks: ["resolved: Sidebar plugin menu items now visible to all logged-in users", "resolved (manual Chrome check pending): unparseable number input now rejected", "Minor (pre-existing CSS): .tc-plugin p overrides .tc-error colour", "Minor: tab switch does not refresh; refresh on first click inside iframe (spec-predicted)"]
+      artifacts:
+        - {path: verification/e2e-verification-report.md, label: E2E report, html: verification/e2e-verification-report.html}
+        - {path: verification/visual-fidelity.md, label: Visual fidelity, html: verification/visual-fidelity.html}
+    user_docs:
+      summary: Non-technical user guide (6 topics) with 15 reused E2E screenshots; no new captures. 1e999 risk removed after Fix B.
+      decisions: []
+      risks: [Some screenshots predate the sidebar fix and show no Shipping entry for editors (explained in guide)]
+      artifacts:
+        - {path: documentation/user-guide.md, label: User guide, html: null}
+    architecture_decision: {decision: pure iframe plugin over existing plugin storage, summary: No backend change; only host change is the ICON_MAP truck entry.}
+
+verification_context:
+  last_status: passed_with_issues
+  issues_found: [vitest dev-only CVEs, plugins/*/dist not gitignored, duplicated page helpers, browser walkthroughs pending]
+  fixes_applied: ["#1 vitest ^5.1.0 (audit 0)", "#2 gitignore plugins/*/dist/", "#3 shared helpers in domain.ts", "#5 Cancel disabled while busy", "#6 checkboxes disabled while saving", "#7 Saved! timer cleanup", "#9 icon test names"]
+  decisions_made: ["User: fix warnings 1-3 + small infos"]
+  reverify_count: 1

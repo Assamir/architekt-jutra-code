@@ -3,6 +3,7 @@ import {
   LayoutList,
   Leaf,
   Plug,
+  Truck,
   Warehouse,
   Image as ImageIcon,
   type LucideIcon,
@@ -21,6 +22,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   plug: Plug,
   warehouse: Warehouse,
   footprint: Leaf,
+  truck: Truck,
 };
 
 export function resolveIcon(name?: string): LucideIcon {

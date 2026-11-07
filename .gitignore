@@ -40,6 +40,7 @@ src/main/frontend/.vite/
 
 ### Plugins ###
 plugins/*/node_modules/
+plugins/*/dist/
 
 ### LiteLLM ###
 litellm/.env

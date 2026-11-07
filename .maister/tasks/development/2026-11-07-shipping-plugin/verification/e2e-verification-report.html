@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E2E Verification — 2026-11-07-shipping-plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+.verdict { border-left:5px solid var(--warn); background:var(--warn-soft); }
+.verdict b { color:var(--warn); font-size:17px; }
+.warnc { color:var(--warn); font-weight:600; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; }
+.grid .card { margin:0; }
+.scn h3 { font-size:14px; margin:0 0 4px; }
+.scn .meta { font-size:12px; color:var(--dim); margin-bottom:6px; }
+.scn ul { margin:6px 0; padding-left:18px; font-size:13px; }
+.scn img.shot { margin-top:8px; }
+dl.f { display:grid; grid-template-columns:150px 1fr; gap:4px 12px; margin:8px 0 0; font-size:13px; }
+dl.f dt { color:var(--dim); }
+dl.f dd { margin:0; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">← Dashboard</a>
+  <a href="../implementation/spec.html">Spec</a>
+  <a href="../implementation/implementation-plan.html">Plan</a>
+  <a href="implementation-verification.html">Verification</a>
+  <span class="here">E2E</span>
+  <a href="visual-fidelity.html">Visual fidelity</a>
+  <a href="e2e-verification-report.md" target="_blank" rel="noopener" class="md">md twin ↗</a>
+</nav>
+
+<header>
+  <span class="badge">E2E verification</span>
+  <h1>Shipping plugin — live browser verification</h1>
+  <div style="color:var(--dim);font-size:13px">2026-11-07 · git 00e2c24 (master + working tree) · base URL http://localhost:5173 · Playwright MCP Chromium 1440×900</div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b class="warnc">GO*</b><span>with caveats</span></div>
+  <div class="tile"><b class="pass">23/23</b><span>scenarios passed</span></div>
+  <div class="tile"><b>4</b><span>passed with issues</span></div>
+  <div class="tile"><b>0</b><span>critical</span></div>
+  <div class="tile"><b>1</b><span>major</span></div>
+  <div class="tile"><b>3</b><span>minor</span></div>
+  <div class="tile"><b>0</b><span>console errors</span></div>
+</div>
+
+<section class="tldr card verdict">
+  <p><b>⚠️ GO WITH CAVEATS</b>: 23 of 23 scenarios passed, 19 cleanly and 4 with issues, with 0 failures and 0 console errors.</p>
+  <p>All config-page rules work against the live stack: validation copy, inline edit with an unchanged objectId, one edit row at a time, the blocked-delete sentences, and Cancel disabled while busy. So do all product-tab rules: badges, the plural and singular hint, Save/"Saved!", opt-out persistence, removeData on an empty list, and inactive opt-out preservation.</p>
+  <p><b style="font-size:14px">Main caveat:</b> the sidebar "Shipping" entry with the Truck icon is shown only for users with PLUGIN_MANAGEMENT; editors and viewers have no sidebar entry. This is pre-existing host <code>Sidebar.tsx</code> gating. Reload-on-focus fires only after the first click inside the iframe, not on a host tab switch, as the spec predicted; unsaved ticks survive.</p>
+  <h2 style="margin-top:14px">Key Decisions</h2>
+  <ul>
+    <li>Roles were switched by logging in from inside the page, so tokens never left the browser.</li>
+    <li>box-size was <b>not</b> registered at the start, so it was registered from <code>plugins/box-size/manifest.json</code> (PUT 200).</li>
+    <li>Test data was created through the UI as editor. Pocztex Kurier needed a short reactivation of Poczta Polska, because the add form lists only active carriers.</li>
+    <li>Spec-sanctioned mockup differences are accepted, not counted as defects: <code>row-off</code>/<code>muted</code>, row order, and the hint naming every ticked too-large method.</li>
+  </ul>
+  <h2>Open Questions / Risks</h2>
+  <ul>
+    <li><span class="sev warning">Major</span>Editors cannot reach Shipping from the sidebar; it works only by direct URL <code>/plugins/shipping/</code>. This is a host follow-up.</li>
+    <li><span class="sev info">Minor</span>The box line stays stale after a Box Size change until the user clicks inside the Shipping iframe.</li>
+    <li><span class="sev info">Minor</span><code>&lt;p class="tc-error"&gt;</code> renders grey everywhere because <code>.tc-plugin p</code> outranks <code>.tc-error</code>.</li>
+  </ul>
+</section>
+
+<nav class="toc" style="font-size:13px">Contents:
+  <a href="#env">Environment</a> · <a href="#g3">Config page scenarios</a> · <a href="#g4">Product tab scenarios</a> ·
+  <a href="#disc">Discrepancies</a> · <a href="#console">Console</a> · <a href="#align">Spec alignment</a> ·
+  <a href="#var">Variances</a> · <a href="#exit">Exit criteria</a> · <a href="#rec">Recommendations</a> · <a href="#concl">Conclusion</a>
+</nav>
+
+<main>
+<h2 id="env">Identifier &amp; environment</h2>
+<div class="card">
+<table>
+<tr><th>Task</th><td>2026-11-07-shipping-plugin</td></tr>
+<tr><th>Spec</th><td><a href="../implementation/spec.md" target="_blank" rel="noopener">implementation/spec.md</a></td></tr>
+<tr><th>Git ref</th><td>00e2c24 (master, with uncommitted shipping-plugin working-tree changes)</td></tr>
+<tr><th>Base URL</th><td>http://localhost:5173 (host Vite dev server, <code>/api</code> proxied to :8080)</td></tr>
+<tr><th>Browser / viewport</th><td>Playwright MCP Chromium · 1440×900</td></tr>
+<tr><th>Auth</th><td>admin (sidebar check), editor (READ, EDIT), viewer (READ); passwords admin123 / editor123 / viewer123 valid</td></tr>
+<tr><th>Test data</th><td>Live dev DB: 4 carriers and 6 methods created through the UI; product 1 "LG C4 65" OLED evo 4K Smart TV", box 120×12×48 (also 60×40×30 and none)</td></tr>
+<tr><th>Plugins</th><td>shipping :3010 (started for this run), box-size :3002 (already running), backend :8080</td></tr>
+</table>
+<p style="margin:10px 0 0">The shipping plugin behaves as specified across both checklists, and every exact copy string in reqs 2, 5, 7, 14, 15, 19, 20 and 23 matched verbatim. REST confirmed that inline edits keep the same <code>objectId</code> with no duplicates, that <code>disabledMethodIds</code> hold method objectIds, and that an empty selection issues <code>DELETE /api/plugins/shipping/products/1/data</code>. The single Major finding is a pre-existing host gate. The Truck icon itself renders correctly.</p>
+</div>
+
+<h2 id="g3">Group 3 — Shipping configuration page (12 scenarios)</h2>
+<div class="grid">
+
+<div class="card scn"><h3>4.1 Sidebar "Shipping" + Truck icon — <span class="warnc">⚠️ Passed with issues</span></h3>
+<div class="meta">Success Criteria; req 25, 26 · Issue: Major #1</div>
+<ul><li>✅ Admin: link "Shipping" → <code>/plugins/shipping/</code></li><li>✅ Icon <code>lucide-truck</code> (not plug)</li><li>⚠️ Editor/viewer: only Products, Carbon Footprint, Categories</li></ul>
+<img class="shot" src="screenshots/01-sidebar-shipping-truck-admin.png" alt="Admin sidebar with Shipping and truck icon"></div>
+
+<div class="card scn"><h3>4.2 Add carrier + validation — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 2</div>
+<ul><li>✅ Empty name → "Carrier name is required."</li><li>✅ Spaces only → same error, nothing saved</li><li>✅ "  DPD  " stored trimmed; 4 UUID objectIds; input cleared</li></ul>
+<img class="shot" src="screenshots/02-carrier-name-required.png" alt="Carrier name required error"></div>
+
+<div class="card scn"><h3>4.3 Carrier active toggle — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 3</div>
+<ul><li>✅ Untick Poczta Polska → same objectId saved <code>{active:false}</code>, no new object</li><li>✅ Inactive carrier excluded from the method add-form select</li></ul>
+<img class="shot" src="screenshots/03-config-editor.png" alt="Config page editor"></div>
+
+<div class="card scn"><h3>4.4 Carrier inline edit keeps objectId — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 4</div>
+<ul><li>✅ Cleared name → "Carrier name is required."</li><li>✅ Rename "DHL Express" → same <code>80a8fc2b-…</code>, 4 carriers, methods show new name</li><li>✅ Rename back; REST: 4 objects, no duplicates</li></ul>
+<img class="shot" src="screenshots/04-config-carrier-inline-edit.png" alt="Carrier inline edit"></div>
+
+<div class="card scn"><h3>4.5 One edit row, Cancel, toggle during edit — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 4, 8</div>
+<ul><li>✅ Editing a method discards the open carrier draft</li><li>✅ Cancel discards the method draft</li><li>✅ Toggling another row twice keeps the draft "DPD draft xyz"</li></ul>
+<img class="shot" src="screenshots/05-config-method-inline-edit.png" alt="Method inline edit"></div>
+
+<div class="card scn"><h3>4.6 Carrier delete blocked / allowed — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 5</div>
+<ul><li>✅ <code>Cannot delete "DPD": it still has 1 delivery method. Delete or move it first.</code></li><li>✅ <code>Cannot delete "InPost": it still has 2 delivery methods. Delete or move them first.</code></li><li>✅ "GLS" (0 methods) deleted, no prompt</li></ul>
+<img class="shot" src="screenshots/06-config-edit-and-blocked-delete.png" alt="Blocked delete and edit row"></div>
+
+<div class="card scn"><h3>4.7 Add method + validation — <span class="warnc">⚠️ Passed with issues</span></h3>
+<div class="meta">req 7 · Issue: Minor #1</div>
+<ul><li>✅ "Select a carrier." / "Method name is required." / "Limits must be positive numbers." (−5 and 0)</li><li>⚠️ <code>1e999</code> sanitised by Chrome to "" → saved with no limit, no error</li><li>✅ 6 methods stored with carrier objectId; empty limits omitted</li></ul>
+<img class="shot" src="screenshots/03b-config-editor-frame.png" alt="Config editor full frame"></div>
+
+<div class="card scn"><h3>4.8 Method inline edit, cleared limits — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 8</div>
+<ul><li>✅ Edit row: select, name, L × W × H, Active, Save/Cancel</li><li>✅ Clear H → same objectId, <code>maxHeightCm</code> removed, "175 × 80 × — cm"</li><li>✅ Restored H=60, 6 methods</li></ul></div>
+
+<div class="card scn"><h3>4.9 Method sorting, limits, "Carrier inactive" — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 6, 10, sorting rule</div>
+<ul><li>✅ DHL Kurier, DHL Paleta, DPD Classic, InPost Kurier, InPost Paczkomat, Pocztex Kurier</li><li>✅ "No limit" / "120 × 80 × 180 cm"</li><li>✅ Pocztex: own Active checkbox + "Carrier inactive" badge</li></ul></div>
+
+<div class="card scn"><h3>4.10 Method delete — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 11</div>
+<ul><li>✅ "Test" deleted without a prompt (1 → 0)</li><li>✅ All 6 methods deleted for the empty state; no error</li></ul></div>
+
+<div class="card scn"><h3>4.11 Controls disabled while busy — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 24 · PUT delayed 2.5 s via route</div>
+<ul><li>✅ Save and <b>Cancel</b> disabled</li><li>✅ "Add carrier" and Active toggles disabled</li></ul>
+<img class="shot" src="screenshots/07-config-busy-cancel-disabled.png" alt="Busy state"></div>
+
+<div class="card scn"><h3>4.12 Config page as viewer — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 22, 23</div>
+<ul><li>✅ "You have read-only access. Ask an editor to change carriers or delivery methods."</li><li>✅ 0 buttons, 0 inputs/selects</li><li>✅ Active / Inactive / Inactive (carrier) badges</li></ul>
+<img class="shot" src="screenshots/08-config-viewer.png" alt="Viewer config page"></div>
+</div>
+
+<h2 id="g4">Group 4 — Product Shipping tab (11 scenarios)</h2>
+<div class="grid">
+
+<div class="card scn"><h3>4.13 Tab loads, no box — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 12–14, 18</div>
+<ul><li>✅ Tabs: Details, Box Size, Shipping; iframe :3010/product-shipping</li><li>✅ No-box line, all active rows "No dimensions" (even no-limit), Pocztex "Inactive", no hint</li></ul>
+<img class="shot" src="screenshots/09-product-tab-nodims.png" alt="No dims initial"></div>
+
+<div class="card scn"><h3>4.14 Box line, badges, sorting — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 14, 16, 18</div>
+<ul><li>✅ "Box: 120 × 12 × 48 cm (from Box Size)"</li><li>✅ No limits · Fits · Fits · Too large · Too large · Inactive (classes verified)</li><li>✅ Kurier before Paczkomat; inactive checkbox disabled</li></ul>
+<img class="shot" src="screenshots/11-product-tab-warning-plural.png" alt="Warning plural"></div>
+
+<div class="card scn"><h3>4.15 Hint plural → singular — <span class="warnc">⚠️ Passed with issues</span></h3>
+<div class="meta">req 19 · Issue: Minor #2</div>
+<ul><li>✅ <code>"InPost Kurier", "InPost Paczkomat" are still available although the box exceeds their limits. Consider unticking them.</code></li><li>✅ After untick: <code>"InPost Paczkomat" is still available although the box exceeds its limits. Consider unticking it.</code>, 1 of 6</li><li>⚠️ Hint rendered grey (CSS specificity)</li></ul>
+<img class="shot" src="screenshots/12-product-tab-editor-singular.png" alt="Editor singular hint"></div>
+
+<div class="card scn"><h3>4.16 Save, "Saved!", persistence — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 20, 21</div>
+<ul><li>✅ "Saved!" at +0.5 s, "Save" at +2.7 s</li><li>✅ GET data → <code>{"disabledMethodIds":["933de468-…"]}</code></li><li>✅ After reload: Kurier unticked, 1 of 6</li></ul>
+<img class="shot" src="screenshots/13-product-tab-saved.png" alt="Saved"></div>
+
+<div class="card scn"><h3>4.17 Re-tick all → data removed — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 21</div>
+<ul><li>✅ Network: <code>DELETE /api/plugins/shipping/products/1/data</code></li><li>✅ pluginData has only <code>box-size</code>; data endpoint <code>{}</code></li></ul></div>
+
+<div class="card scn"><h3>4.18 Disabled method edit / deactivate / reactivate — <span class="pass">✅ Passed</span></h3>
+<div class="meta">Key Decisions, req 18, 21</div>
+<ul><li>✅ Rename + H 36 + deactivate → same objectId</li><li>✅ Tab: "Inactive", unticked, disabled, 1 of 6; Save keeps the id</li><li>✅ Reactivate: unticked again, "Too large"</li></ul>
+<img class="shot" src="screenshots/14-product-tab-disabled-method-deactivated.png" alt="Deactivated disabled method"></div>
+
+<div class="card scn"><h3>4.19 No box after Remove — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 14, 18, 28</div>
+<ul><li>✅ Before the click: old box line (refresh pending)</li><li>✅ After the click: no-box line, all "No dimensions", no hint, 1 of 6</li></ul>
+<img class="shot" src="screenshots/18-product-tab-nodims-after-remove.png" alt="No dims after remove"></div>
+
+<div class="card scn"><h3>4.20 Reload on focus keeps unsaved ticks — <span class="warnc">⚠️ Passed with issues</span></h3>
+<div class="meta">req 28 · Issue: Minor #3</div>
+<ul><li>⚠️ Host tab switch: <b>no refresh</b> (still 120 × 12 × 48 after 2.5 s)</li><li>✅ Click inside: "Box: 60 × 40 × 30 cm", badges recomputed, hint gone</li><li>✅ Unsaved DPD Classic untick survived (2 of 6); no "Loading..."</li></ul>
+<img class="shot" src="screenshots/15-reload-focus-after-switch.png" alt="After switch (stale)">
+<img class="shot" src="screenshots/16-reload-focus-after-click.png" alt="After click (refreshed)"></div>
+
+<div class="card scn"><h3>4.21 Product tab as viewer — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 22, 23</div>
+<ul><li>✅ "Read-only: you can see which methods are available but not change them."</li><li>✅ 6/6 checkboxes disabled; hint shown; no Save or counter</li></ul>
+<img class="shot" src="screenshots/17-product-tab-viewer.png" alt="Viewer product tab"></div>
+
+<div class="card scn"><h3>4.22 Empty state (editor + viewer) — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 15</div>
+<ul><li>✅ Box line + "No delivery methods configured. Add them in the Shipping section."</li><li>✅ No table or Save; the viewer sees no notice</li></ul>
+<img class="shot" src="screenshots/19-product-tab-empty-editor.png" alt="Empty editor"></div>
+
+<div class="card scn"><h3>4.23 Served from :3010, strictPort — <span class="pass">✅ Passed</span></h3>
+<div class="meta">req 25</div>
+<ul><li>✅ iframe src <code>http://localhost:3010/…</code></li><li>✅ Second vite: "Port 3010 is already in use"</li><li>✅ Manifest: Shipping 1.0.0, truck/110, /product-shipping/80</li></ul></div>
+</div>
+
+<h2 id="disc">Discrepancies</h2>
+<div class="card">
+<p><span class="sev warning">Major</span><b>#1 Sidebar "Shipping" entry hidden from editors and viewers</b> (pre-existing host)</p>
+<dl class="f">
+<dt>Spec requirement</dt><dd>Success Criteria: "the sidebar shows 'Shipping' with the Truck icon"; Key Decisions: admin means <code>PERMISSION_EDIT</code></dd>
+<dt>Expected</dt><dd>Editor (READ, EDIT) sees "Shipping" in the sidebar</dd>
+<dt>Actual</dt><dd>Only admin (PLUGIN_MANAGEMENT) sees it: <code>Sidebar.tsx</code> renders <code>{hasPluginManagement &amp;&amp; &lt;PluginMenuItems /&gt;}</code> (committed in ba41674). The page works for editors via a direct URL.</dd>
+<dt>Evidence</dt><dd><a href="screenshots/01-sidebar-shipping-truck-admin.png">01-sidebar-shipping-truck-admin.png</a>, <a href="screenshots/03-config-editor.png">03-config-editor.png</a></dd>
+<dt>Root cause</dt><dd>The host treats every plugin menu item as an admin feature</dd>
+<dt>User impact</dt><dd>Editors cannot discover the configuration page without a link</dd>
+<dt>Recommended fix</dt><dd>Host follow-up: show <code>menu.main</code> items to all authenticated users, or gate them per manifest</dd>
+<dt>Workaround</dt><dd>Open <code>/plugins/shipping/</code> directly or bookmark it</dd>
+</dl>
+</div>
+<div class="card">
+<p><span class="sev info">Minor</span><b>#1 Out-of-range number input silently saved as "no limit"</b></p>
+<dl class="f">
+<dt>Spec requirement</dt><dd>req 7: each filled limit must be a finite number &gt; 0</dd>
+<dt>Expected</dt><dd>"Limits must be positive numbers." for <code>1e999</code></dd>
+<dt>Actual</dt><dd>Chrome sanitises the <code>type="number"</code> value to "", so the method was saved without <code>maxLengthCm</code> and with no message</dd>
+<dt>Evidence</dt><dd>Stored <code>{"name":"Test","active":true,"carrierId":"80a8fc2b-…"}</code> (observed via objects.list, then deleted)</dd>
+<dt>Root cause</dt><dd><code>parseLimits</code> reads the already-emptied <code>value</code>; <code>validity.badInput</code> is ignored</dd>
+<dt>User impact</dt><dd>A mistyped limit silently becomes unlimited</dd>
+<dt>Recommended fix</dt><dd>Check <code>validity.badInput</code>, or use <code>type="text" inputMode="decimal"</code></dd>
+<dt>Workaround</dt><dd>Check the Max size column after saving; edit inline</dd>
+</dl>
+</div>
+<div class="card">
+<p><span class="sev info">Minor</span><b>#2 <code>tc-error</code> paragraphs render grey, not red</b> (pre-existing CSS)</p>
+<dl class="f">
+<dt>Spec requirement</dt><dd>reqs 19, 24: hint and errors shown in <code>tc-error</code></dd>
+<dt>Expected</dt><dd>Red (#DC2626)</dd>
+<dt>Actual</dt><dd><code>.tc-plugin p</code> (0,1,1) outranks <code>.tc-error</code> (0,1,0); all <code>&lt;p class="tc-error"&gt;</code> are grey, the same in the mockups and in warehouse/box-size</dd>
+<dt>Evidence</dt><dd><a href="screenshots/12-product-tab-editor-singular.png">12-product-tab-editor-singular.png</a>, <a href="screenshots/02-carrier-name-required.png">02-carrier-name-required.png</a></dd>
+<dt>Root cause</dt><dd>Specificity bug in host <code>plugin-ui.css</code> (out of scope)</dd>
+<dt>User impact</dt><dd>Warnings are less noticeable</dd>
+<dt>Recommended fix</dt><dd>Host follow-up: <code>.tc-plugin .tc-error</code></dd>
+<dt>Workaround</dt><dd>None needed</dd>
+</dl>
+</div>
+<div class="card">
+<p><span class="sev info">Minor</span><b>#3 Reload on focus does not fire on host tab switch</b> (documented risk)</p>
+<dl class="f">
+<dt>Spec requirement</dt><dd>req 28; Open Questions predicted that the refresh runs on the first click</dd>
+<dt>Expected</dt><dd>Refresh on iframe <code>focus</code>/<code>visibilitychange</code></dd>
+<dt>Actual</dt><dd>Confirmed: the box line stays stale after the tab switch until the first click inside, then refreshes correctly with unsaved ticks kept</dd>
+<dt>Evidence</dt><dd><a href="screenshots/15-reload-focus-after-switch.png">15-reload-focus-after-switch.png</a>, <a href="screenshots/16-reload-focus-after-click.png">16-reload-focus-after-click.png</a></dd>
+<dt>Root cause</dt><dd>The host hides tab iframes with CSS <code>display</code>, and no events reach the iframe</dd>
+<dt>User impact</dt><dd>Badges and the hint can be stale until interaction; Save is unaffected</dd>
+<dt>Recommended fix</dt><dd>Accepted per spec; optional host postMessage on tab activation</dd>
+<dt>Workaround</dt><dd>Click inside the Shipping tab</dd>
+</dl>
+</div>
+<p style="font-size:13px;color:var(--dim)">Critical: none observed · Cosmetic: none observed</p>
+
+<h2 id="console">Console &amp; network</h2>
+<div class="card">
+<table><tr><th>Source</th><th>Message</th><th>Frequency</th><th>Severity</th><th>Impact</th></tr>
+<tr><td>react-dom_client.js:6804 (host)</td><td>An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.</td><td>Once per iframe mount</td><td><span class="sev info">Minor</span></td><td>Pre-existing host warning, not shipping-specific</td></tr></table>
+<p style="margin:8px 0 0">0 console errors. No failed (non-2xx) shipping requests; blocked carrier deletes are resolved client-side.</p>
+</div>
+
+<h2 id="align">Spec alignment</h2>
+<div class="card">
+<ul>
+<li><b>Fully implemented:</b> reqs 1–6, 8–25, 28 (with the accepted trigger caveat); sorting rule; objectId as domain id; opt-out with removeData; badge precedence; inactive opt-out preservation; viewer variants; strictPort 3010; manifest; <code>truck</code> icon.</li>
+<li><b>Partially implemented:</b> req 7: browser-sanitised invalid limits bypass validation.</li>
+<li><b>Not implemented:</b> none.</li>
+<li><b>Extra:</b> the blocked-delete error stays visible after opening an edit row (cleared on the next carrier mutation); harmless and matches the mockup.</li>
+</ul></div>
+
+<h2 id="var">Variances from plan</h2>
+<div class="card"><ul>
+<li>box-size was not registered, so it was registered from its manifest (PUT 200).</li>
+<li><code>PluginProvider</code> fetched plugins before login, and a reload was needed (host behaviour).</li>
+<li>The first Playwright clicks in the iframe did nothing while shipping's Vite re-optimised dependencies; later clicks were consistent (environment artefact, no data affected).</li>
+<li>Roles were switched via an in-page login fetch, not the form.</li>
+<li>Pocztex Kurier was added by briefly reactivating Poczta Polska; DHL Paleta was briefly inactive for viewer coverage.</li>
+<li>Screenshots 05 and 06 are clipped at the iframe viewport height.</li>
+<li>The 14 and 12 walkthrough items live in group reports that are not in the task dir; scenarios were derived from reqs 1–28, the Success Criteria and the brief.</li>
+</ul></div>
+
+<h2 id="exit">Exit criteria</h2>
+<div class="card"><table>
+<tr><th>Criterion</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>Vite serves on :3010; a second instance fails (strictPort)</td><td>✅</td><td>4.23</td></tr>
+<tr><td>Sidebar "Shipping" with Truck; product "Shipping" tab</td><td>⚠️</td><td>Admin only (Major #1); tab ✅ 4.13</td></tr>
+<tr><td>Add, edit inline (same objectId, no duplicate), toggle, delete</td><td>✅</td><td>4.2–4.4, 4.7–4.10</td></tr>
+<tr><td>One edit row at a time</td><td>✅</td><td>4.5</td></tr>
+<tr><td>Blocked delete singular/plural</td><td>✅</td><td>4.6</td></tr>
+<tr><td>InPost too large, Kurier before Paczkomat, plural hint exact</td><td>✅</td><td>4.14, 4.15</td></tr>
+<tr><td>Untick one → singular hint</td><td>✅</td><td>4.15</td></tr>
+<tr><td>Untick + Save + reload persists; objectIds; "Saved!" 2 s</td><td>✅</td><td>4.16</td></tr>
+<tr><td>Re-tick all + Save removes data</td><td>✅</td><td>4.17</td></tr>
+<tr><td>Rename/limits edit keeps disabled</td><td>✅</td><td>4.18</td></tr>
+<tr><td>Deactivate keeps the opt-out; reactivate re-applies</td><td>✅</td><td>4.18</td></tr>
+<tr><td>Box Size change + focus updates; unsaved ticks kept</td><td>✅</td><td>4.20</td></tr>
+<tr><td>Viewer: no write controls, disabled checkboxes, notices</td><td>✅</td><td>4.12, 4.21, 4.22</td></tr>
+<tr><td>8 screens + 2 components match mockups (rules win)</td><td>✅</td><td><a href="visual-fidelity.html">9 match / 1 minor / 0 drift</a></td></tr>
+</table></div>
+
+<h2 id="rec">Recommendations</h2>
+<div class="card"><ul>
+<li><b>Must fix before merge:</b> none.</li>
+<li><b>Should fix soon:</b> Major #1 (host sidebar gating, separate task); Minor #1 (<code>validity.badInput</code> on limit inputs).</li>
+<li><b>Nice-to-have:</b> Minor #2 (plugin-ui.css specificity); Minor #3 (host tab-activation message).</li>
+</ul></div>
+
+<h2>Artifacts</h2>
+<div class="card"><ul>
+<li>Screenshots: <code>verification/screenshots/</code> (30 files: 22 captures + 8 rendered mockups)</li>
+<li>Visual fidelity: <a href="visual-fidelity.html">visual-fidelity.html</a> · <a href="visual-fidelity.md" target="_blank" rel="noopener">md ↗</a></li>
+</ul></div>
+
+<h2 id="concl">Conclusion</h2>
+<div class="card verdict"><p><b>⚠️ GO WITH CAVEATS</b>. Every specified shipping-plugin behaviour was observed working end to end against the live backend, with exact copy, correct objectId handling and correct pluginData persistence. The Major finding is a pre-existing host sidebar gate. The Minor findings are a browser input edge case, pre-existing CSS, and a documented trigger limitation. <b>Recommendation: merge</b>, with follow-ups for sidebar gating and limit-input <code>badInput</code> handling.</p></div>
+</main>
+</body>
+</html>

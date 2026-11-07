@@ -395,3 +395,14 @@ The host passes context to your plugin via the iframe's URL hash fragment. The S
 - Product detail info badge (`product.detail.info`) showing "Box: 120cm/12cm/48cm"
 - Domain types and formatters in `src/domain.ts`
 - Validation and error handling in the save flow
+
+### Shipping Plugin
+
+`plugins/shipping/` is a business-module example demonstrating:
+- Dev server on port 3010 (`strictPort: true`). Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011)
+- System-wide catalogue via `thisPlugin.objects` (types `"carrier"` and `"shipping-method"`), keyed by `objectId` (a UUID), never the numeric `id`. Inline edit saves under the same `objectId`, so existing references survive; `carrierId` and opt-outs hold objectIds
+- Per-product opt-out restrictions via `thisPlugin.getData/setData` as `{disabledMethodIds: string[]}`: every active method is available unless unticked, and `removeData` runs when the list is empty
+- Cross-plugin read: the product tab reads box-size dimensions from `hostApp.getProduct(productId)` (`pluginData["box-size"]`) for a rotation-aware size warning, and re-fetches the product and both lists on window `focus` / `visibilitychange` while keeping unsaved ticks
+- Write controls gated by a local `canEdit(token)` that base64url-decodes the JWT from `hostApp.getToken()` and checks the `permissions` claim for `EDIT` (the backend still enforces EDIT with 403)
+- Sidebar page (`menu.main`, icon `truck`) for carriers/methods and a product detail tab (`product.detail.tabs`) for restrictions
+- Manual registration with a `PERMISSION_PLUGIN_MANAGEMENT` token: `curl -X PUT http://localhost:8080/api/plugins/shipping/manifest -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d @manifest.json`

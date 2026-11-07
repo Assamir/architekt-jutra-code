@@ -1,0 +1,21 @@
+{
+  "name": "Shipping",
+  "version": "1.0.0",
+  "url": "http://localhost:3010",
+  "description": "Carriers, delivery methods and per-product shipping restrictions",
+  "extensionPoints": [
+    {
+      "type": "menu.main",
+      "label": "Shipping",
+      "icon": "truck",
+      "path": "/",
+      "priority": 110
+    },
+    {
+      "type": "product.detail.tabs",
+      "label": "Shipping",
+      "path": "/product-shipping",
+      "priority": 80
+    }
+  ]
+}
