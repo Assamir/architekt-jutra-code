@@ -57,3 +57,13 @@ beforeEach(() => {
 ### Test Organization
 
 Use `describe()` blocks named after the page or feature being tested. Place test files in `src/test/` directory.
+
+### Query Chakra asChild Links by Selector
+
+Under jsdom, `getByRole("link")` does not reliably find Chakra `asChild`-wrapped anchors. Query them with `container.querySelector('a[href=...]')` instead.
+
+```typescript
+expect(container.querySelector('a[href="/carbon-footprint"]')).toBeInTheDocument();
+```
+
+Source: .maister/tasks/development/2026-05-20-footprint-calc-engine-ui/implementation/work-log.md

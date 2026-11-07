@@ -110,6 +110,18 @@ public class Customer extends BaseEntity {
 - Don't override `getId()` in each entity — unnecessary boilerplate
 - `@Version` with `LocalDateTime` provides both optimistic locking and audit tracking in one field
 
+#### When to Extend BaseEntity (Project Practice)
+
+Only entities with generated `Long` ids extend `BaseEntity` (with the per-entity `@SequenceGenerator(name = "base_seq", sequenceName = "<table>_seq", allocationSize = 1)`, `@Getter/@Setter/@NoArgsConstructor` and business-key `equals/hashCode`). Entities with externally assigned ids (`PluginDescriptor` with `String pluginId`, `RegisteredClientEntity` with UUID) do not extend `BaseEntity` and use that natural id as their equality key. Map JSONB columns as `Map<String, Object>`:
+
+```java
+@JdbcTypeCode(SqlTypes.JSON)
+@Column(columnDefinition = "jsonb")
+private Map<String, Object> pluginData;
+```
+
+Source: src/main/java/pl/devstyle/aj/product/Product.java, user/User.java, core/plugin/PluginDescriptor.java
+
 ---
 
 ### Primary Keys

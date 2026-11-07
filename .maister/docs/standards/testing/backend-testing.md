@@ -129,3 +129,13 @@ Apply at class level. Tests that set up plugins via manifest PUT need `@WithMock
 // Correct — single segment matches {pluginId}
 .requestMatchers(HttpMethod.GET, "/api/plugins/*/objects/**")
 ```
+
+### AFTER_COMMIT Listeners Need Non-Transactional Test Classes
+
+A `@Transactional` test class rolls back, so `@TransactionalEventListener(AFTER_COMMIT)` listeners never fire inside it. Test behaviour that depends on after-commit or async listeners (e.g. audit rows) in a separate test class without `@Transactional`, with explicit cleanup. Do not leave `@Disabled` placeholders instead.
+
+```java
+// FootprintCalculateUnitAuditIntegrationTests: no @Transactional, explicit cleanup
+```
+
+Source: .maister/tasks/development/2026-05-20-footprint-calc-engine/implementation/work-log.md

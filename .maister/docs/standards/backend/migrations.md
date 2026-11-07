@@ -20,3 +20,8 @@ Use names that indicate what the migration does.
 
 ### Version Control
 Commit migrations; never modify existing ones after deployment.
+
+### Liquibase File Naming and Codegen
+Migrations are Liquibase YAML files at `src/main/resources/db/changelog/2026/NNN-<verb>-<description>.yaml` with a zero-padded sequence number (e.g. `011-create-footprint-audit-log.yaml`), picked up by `includeAll` from `db.changelog-master.yaml`. Sample data goes in changesets with the `dev` context. After any migration change, run a normal Maven build (without `-Dskip.jooq.generation`) so jOOQ classes are regenerated.
+
+Source: CLAUDE.md, src/main/resources/db/changelog/db.changelog-master.yaml, src/main/resources/db/changelog/2026/

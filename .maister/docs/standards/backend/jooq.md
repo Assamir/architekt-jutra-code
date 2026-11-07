@@ -91,6 +91,16 @@ dsl.select()
    .fetch();
 ```
 
+#### Codegen from Liquibase via Testcontainers (Project Setup)
+
+jOOQ classes are never hand-written or committed. `testcontainers-jooq-codegen-maven-plugin` starts `postgres:18` in `generate-sources`, applies `db.changelog-master.yaml` with Liquibase and generates the `public` schema into `pl.devstyle.aj.jooq` under `target/generated-sources/jooq` (excluding `databasechangelog*`); `build-helper-maven-plugin` adds it to the compile path. Re-run a Maven build after every migration change. Pass `-Dskip.jooq.generation=true` only when generated sources already exist. Codegen versions follow the Boot BOM (`${jooq.version}`, `${postgresql.version}`, `${testcontainers.version}`).
+
+```bash
+./mvnw test -Dskip.jooq.generation=true   # reuse existing generated sources
+```
+
+Source: pom.xml
+
 ---
 
 ### Mandatory Rules

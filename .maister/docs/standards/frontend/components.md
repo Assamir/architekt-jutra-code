@@ -26,3 +26,13 @@ If a component needs many props, consider composition or splitting it.
 
 ### Documentation
 Document usage, props, and examples to help team adoption.
+
+### Named Function Exports, No Default Exports
+Components and pages are PascalCase `.tsx` files exporting `export function Name(...)`; the host frontend has no default exports. Pages live in `pages/` with a `Page` suffix; reusable components in `components/<area>/` (`layout`, `shared`, `footprint`). Use relative imports and `import type` for type-only imports.
+
+```tsx
+import type { ProductResponse } from "../api/products";
+export function ProductListPage() { ... }
+```
+
+Source: src/main/frontend/src/pages/ProductListPage.tsx, components/shared/ConfirmDialog.tsx, components/layout/AppShell.tsx

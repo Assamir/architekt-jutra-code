@@ -1,96 +1,87 @@
 # Technology Stack
 
 ## Overview
-This document describes the technology choices and rationale for **aj** — a plugin-based microkernel platform built on Spring Boot.
+Technology choices for **aj**, a microkernel (plugin-based) platform: a Spring Boot host application with a React frontend, iframe-based plugins, and a separate MCP server.
 
 ## Languages
 
 ### Java (25)
-- **Usage**: 100% of codebase
-- **Rationale**: Enterprise-grade language with strong ecosystem for plugin architectures, JVM stability, and Spring Boot compatibility
-- **Key Features Used**: Records, sealed classes, pattern matching, virtual threads (available in Java 25)
+- **Usage**: host backend (`src/main/java`) and MCP server (`mcp-server/`)
+- **Key features used**: records, pattern matching, Lombok-reduced boilerplate on JPA entities
+
+### TypeScript (~5.9)
+- **Usage**: host frontend (`src/main/frontend`), plugin SDK, plugins (`plugins/*`)
 
 ## Frameworks
 
-### Backend
+### Backend (host, `pom.xml`)
+| Module | Purpose |
+|---|---|
+| Spring Boot 4.0.5 (`starter-webmvc`) | REST API |
+| `starter-data-jpa` | CRUD on entities |
+| `starter-jooq` | type-safe complex reads, JSONB filtering (`Db*QueryService`) |
+| `starter-liquibase` | schema migrations |
+| `starter-validation` | request validation |
+| `starter-security` + jjwt 0.12.6 | stateless JWT auth, permission-based authorization |
+| `spring-security-oauth2-authorization-server` | host acts as OAuth2 AS for the MCP server |
+| `spring-boot-docker-compose` | auto-starts compose services in dev |
+| spring-retry 2.0.12 + `spring-aspects` | retrying async audit in `footprint` |
+| commons-csv 1.10.0 | CSV export in `footprint` |
+| micrometer-core | metrics |
 
-#### Spring Boot (4.0.5)
-- **Purpose**: Application framework and dependency injection
-- **Modules Used**:
-  - `spring-boot-starter-webmvc` — REST API support
-  - `spring-boot-starter-data-jpa` — ORM abstraction layer
-  - `spring-boot-starter-jooq` — Type-safe SQL query builder
-  - `spring-boot-starter-liquibase` — Database schema versioning
+### Backend (MCP server, `mcp-server/pom.xml`)
+- Spring Boot 4.0.5 (`starter-web`, `starter-security`, `starter-actuator`)
+- `mcp-spring-webmvc` 0.18.1 (MCP Java SDK)
+- `json-schema-validator` 2.0.0
+
+### Frontend (host)
+- React 19.2, React Router 7, Chakra UI v3, lucide-react icons
+- Vite 8 (app build + separate IIFE build of the plugin SDK via `vite.sdk.config.ts`)
+
+### Plugins
+| Plugin | Stack | Dev port |
+|---|---|---|
+| `warehouse` | React 19 + Vite 8 | 3001 |
+| `box-size` | React 19 + Vite 8 | 3002 |
+| `ai-description` | Next.js 15 + BAML 0.220 (LLM via LiteLLM) | 3003 |
 
 ### Testing
-
-#### JUnit 5 (Jupiter)
-- **Purpose**: Test framework
-- **Scope**: Unit and integration tests
-
-#### Spring Boot Test
-- **Purpose**: Spring context testing support
-
-#### TestContainers (PostgreSQL)
-- **Purpose**: Containerized database for integration tests
-- **Rationale**: Ensures tests run against real PostgreSQL, avoiding mock/production divergence
+- **Backend**: JUnit 5, Spring Boot test starters (JPA/jOOQ/Liquibase/WebMVC), `spring-security-test`, TestContainers (PostgreSQL 18)
+- **Host frontend**: Vitest 3, @testing-library/react, jest-dom, jsdom
+- **ai-description plugin**: Jest 29
 
 ## Database
 
-### PostgreSQL
-- **Type**: Relational (RDBMS)
-- **ORM/Client**: Spring Data JPA + JOOQ (dual)
-- **Migration Tool**: Liquibase (changelog directory prepared, no migrations yet)
-- **Rationale**: Robust relational database with strong support for multi-tenant architectures, JSONB for flexible plugin data, and row-level security
+### PostgreSQL 18
+- **Type**: relational, with JSONB for plugin data (`products.plugin_data`, `plugin_objects`)
+- **Access**: JPA for CRUD, jOOQ for complex reads; jOOQ classes generated into `pl.devstyle.aj.jooq` by `testcontainers-jooq-codegen-maven-plugin` against a throwaway `postgres:18` container
+- **Migrations**: Liquibase YAML in `src/main/resources/db/changelog/2026/NNN-*.yaml` (context `dev` loads sample data)
 
 ## Build Tools & Package Management
-
-### Maven 3+ (with Maven Wrapper)
-- **Build Plugin**: `spring-boot-maven-plugin`
-- **Wrapper**: `mvnw` / `mvnw.cmd` for version-locked builds
-- **Artifact**: `aj-0.0.1-SNAPSHOT`
+- **Maven** with wrapper (`mvnw`), separate wrapper in `mcp-server/`
+- **frontend-maven-plugin** 1.15.1 installs Node v22.14.0 and builds the frontend into `src/main/resources/static` during the Maven build
+- **npm** for frontend and plugins
 
 ## Infrastructure
 
-### Containerization
-- TestContainers used for test database isolation
-- No production Docker configuration yet
+### Containerization (`compose.yml`)
+- `postgres:18` — application database
+- AI tooling for `ai-description`: LiteLLM (+ its Postgres), Langfuse + worker (+ Postgres, ClickHouse, MinIO via `pgsty/minio`, Redis 7), Presidio analyzer/anonymizer
+
+### Local orchestration
+- `start-dev.sh` / `start-dev.ps1` start compose services, host app, MCP server and every plugin with a `package.json`
 
 ### CI/CD
-- Not yet configured
-
-### Hosting
-- Not yet determined
+- Not configured (no `.github/workflows`)
 
 ## Development Tools
-
-### Linting & Formatting
-- Using Spring Boot / IDE defaults (no explicit linter configured)
-
-### Type Checking
-- Java compiler (strongly typed language)
-
-## Key Dependencies
-
-| Dependency | Version | Purpose |
-|---|---|---|
-| spring-boot-starter-webmvc | 4.0.5 | REST API |
-| spring-boot-starter-data-jpa | 4.0.5 | ORM |
-| spring-boot-starter-jooq | 4.0.5 | SQL query builder |
-| spring-boot-starter-liquibase | 4.0.5 | Schema migrations |
-| postgresql | runtime | Database driver |
-| spring-boot-testcontainers | 4.0.5 | Test infrastructure |
-| testcontainers-postgresql | — | Test database |
+- **Linting**: ESLint 9 + typescript-eslint, react-hooks and react-refresh plugins (frontend); no Java linter/formatter configured
+- **Type checking**: `tsc -b` in the frontend build; Java compiler
 
 ## Version Management
-- Spring Boot BOM manages transitive dependency versions
-- Maven Wrapper pins Maven version
-- Java version specified in `pom.xml` (`<java.version>25</java.version>`)
-
-## Architectural Decisions Pending
-- **JPA vs JOOQ**: Both included — decision needed on which to standardize for domain model vs queries
-- **Plugin framework**: Researched (PF4J, OSGi, JPMS) but not yet selected
+- Spring Boot BOM manages Java dependency versions; explicit versions only for jjwt, spring-retry, commons-csv, MCP SDK
+- Node version pinned for Maven builds via frontend-maven-plugin
 
 ---
-*Last Updated*: 2026-03-28
-*Auto-detected*: Language, framework, dependencies, database, build tools, testing infrastructure
+*Last Updated*: 2026-11-07
+*Auto-detected*: from `pom.xml`, `mcp-server/pom.xml`, `package.json` files, `compose.yml`, Vite configs
