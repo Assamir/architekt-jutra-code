@@ -399,10 +399,21 @@ The host passes context to your plugin via the iframe's URL hash fragment. The S
 ### Shipping Plugin
 
 `plugins/shipping/` is a business-module example demonstrating:
-- Dev server on port 3010 (`strictPort: true`). Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011)
+- Dev server on port 3010 (`strictPort: true`). Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, ai-offer-analysis 3011, next business module 3012)
 - System-wide catalogue via `thisPlugin.objects` (types `"carrier"` and `"shipping-method"`), keyed by `objectId` (a UUID), never the numeric `id`. Inline edit saves under the same `objectId`, so existing references survive; `carrierId` and opt-outs hold objectIds
 - Per-product opt-out restrictions via `thisPlugin.getData/setData` as `{disabledMethodIds: string[]}`: every active method is available unless unticked, and `removeData` runs when the list is empty
 - Cross-plugin read: the product tab reads box-size dimensions from `hostApp.getProduct(productId)` (`pluginData["box-size"]`) for a rotation-aware size warning, and re-fetches the product and both lists on window `focus` / `visibilitychange` while keeping unsaved ticks
 - Write controls gated by a local `canEdit(token)` that base64url-decodes the JWT from `hostApp.getToken()` and checks the `permissions` claim for `EDIT` (the backend still enforces EDIT with 403)
 - Sidebar page (`menu.main`, icon `truck`) for carriers/methods and a product detail tab (`product.detail.tabs`) for restrictions
 - Manual registration with a `PERMISSION_PLUGIN_MANAGEMENT` token: `curl -X PUT http://localhost:8080/api/plugins/shipping/manifest -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d @manifest.json`
+
+### AI Offer Analysis Plugin
+
+`plugins/ai-offer-analysis/` is a Next.js + LLM business-module example (port 3011, `-p 3011` on `dev` and `start`) demonstrating:
+- Next.js 15 Pages Router with a server route (`src/pages/api/analyze.ts`) that uses `createServerSDK(pluginId, undefined, req)` to forward the user's JWT, and gates on the `EDIT` permission before any host or LLM call
+- BAML 0.220 structured output (`AnalyzeOffer` → typed `OfferAnalysis`) through the LiteLLM gateway on `:4000` only, with static `user`/`metadata.tags` attribution; the plugin `.env` holds `LITELLM_API_KEY` (plus optional `HOST_BASE_URL` and `BAML_LOG=warn`, which keeps BAML from echoing prompts to stdout)
+- Storage split: the full result as a plugin object (`objectType "analysis"`, `objectId = productId`, bound to `PRODUCT` on every save) plus a compact `setData` summary (`needsReview` and verdicts, integers only) that feeds the badge and the filter
+- Product detail tab (`product.detail.tabs`) that auto-runs only when its iframe is visible and the content fingerprint changed, and an info badge (`product.detail.info`)
+- Host-rendered boolean filter `needsReview` ("AI: needs review")
+- Tab-to-badge refresh via `BroadcastChannel("ai-offer-analysis")` between the two same-origin iframes
+- Registration by the dev seed `013-insert-ai-offer-analysis-plugin.yaml`; after manifest changes re-register with `PUT /api/plugins/ai-offer-analysis/manifest` (see the plugin README)

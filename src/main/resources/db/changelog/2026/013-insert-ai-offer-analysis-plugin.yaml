@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-insert-ai-offer-analysis-plugin
+      author: aj
+      context: dev
+      comment: Registers the ai-offer-analysis plugin; manifest mirrors plugins/ai-offer-analysis/manifest.json (re-register via PUT /api/plugins/ai-offer-analysis/manifest after changes)
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO plugins (id, name, version, url, description, enabled, manifest, created_at, updated_at)
+              VALUES ('ai-offer-analysis', 'AI Offer Analysis', '1.0.0', 'http://localhost:3011',
+                'AI checks of description quality, category fit and price vs market (BAML via LiteLLM)', true,
+                '{"name": "AI Offer Analysis", "version": "1.0.0", "url": "http://localhost:3011",
+                  "description": "AI checks of description quality, category fit and price vs market (BAML via LiteLLM)",
+                  "extensionPoints": [
+                    {"type": "product.detail.tabs", "label": "AI Offer Analysis", "path": "/product-tab", "priority": 90},
+                    {"type": "product.detail.info", "label": "AI Review", "path": "/product-badge", "priority": 30},
+                    {"type": "product.list.filters", "label": "AI: needs review", "filterKey": "needsReview", "filterType": "boolean", "priority": 20}]}'::jsonb,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              ON CONFLICT (id) DO NOTHING
+      rollback:
+        - sql:
+            sql: DELETE FROM plugin_objects WHERE plugin_id = 'ai-offer-analysis'
+        - sql:
+            sql: DELETE FROM plugins WHERE id = 'ai-offer-analysis'
+
+  - changeSet:
+      id: 013-insert-ai-offer-analysis-demo-products
+      author: aj
+      context: dev
+      comment: Two deliberately flawed demo products for the ai-offer-analysis plugin; a missing category skips its row
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO products (id, name, description, price, sku, category_id, created_at, updated_at)
+              SELECT nextval('product_seq'), s.name, s.description, s.price, s.sku, c.id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+              FROM (VALUES
+                ('Vistara 65" OLED 4K TV', 'The best TV ever. Buy now!', 2799.00, 'AOA-DEMO-TV65', 'Smart Home'),
+                ('Skylink AX3000 Mesh Wi-Fi 6 System (2-Pack)', 'Dual-band Wi-Fi 6 (AX3000) mesh system with two nodes covering up to 4,500 sq ft, WPA3 security, app-based setup and parental controls.', 19.99, 'AOA-DEMO-MESH2', 'Home Appliances')
+              ) AS s (name, description, price, sku, category_name)
+              INNER JOIN categories c ON c.name = s.category_name
+              ON CONFLICT (sku) DO NOTHING
+      rollback:
+        - sql:
+            sql: DELETE FROM products WHERE sku IN ('AOA-DEMO-TV65', 'AOA-DEMO-MESH2')

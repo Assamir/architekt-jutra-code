@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Specification — AI Offer Analysis plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+/* report-specific */
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+header .meta { color:var(--dim); font-size:12.5px; }
+.tldr { border-left:4px solid var(--accent); }
+.tldr h3 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:14px 0 6px; }
+.tldr ul { margin:0; padding-left:20px; }
+.toc { font-size:13px; color:var(--dim); margin:8px 0 4px; }
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.cols .card { margin:0; }
+.in h3 { color:var(--ok); margin-top:0; font-size:14px; } .out h3 { color:var(--crit); margin-top:0; font-size:14px; }
+.stories { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+.story { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+.story b { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:4px; }
+.chip { display:inline-block; font-size:12px; padding:1px 8px; border-radius:99px; border:1px solid var(--border); margin:2px 2px 2px 0; }
+.chip.danger { background:var(--crit-soft); color:var(--crit); border-color:transparent; }
+.chip.success { background:var(--ok-soft); color:var(--ok); border-color:transparent; }
+.chip.plain { background:var(--bg); }
+ol.steps li { margin-bottom:6px; }
+.flow { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; white-space:pre-wrap;
+  background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; overflow-x:auto; }
+details { margin:10px 0; }
+details > div { margin-top:10px; }
+@media (max-width: 760px) { .cols { grid-template-columns:1fr; } }
+.cmd { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; white-space:pre-wrap; word-break:break-all;
+  background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin:6px 0; }
+.resolved { color:var(--ok); font-weight:600; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">&larr; Dashboard</a>
+  <span class="here">Spec</span>
+  <a href="implementation-plan.html">Plan</a>
+  <a href="../verification/implementation-verification.html">Verification</a>
+  <a href="spec.md" target="_blank" rel="noopener" class="md">md twin &#8599;</a>
+</nav>
+
+<header>
+  <span class="badge">Specification</span> <span class="badge">revised after spec audit</span> <span class="badge">amended in Phase 11</span>
+  <h1>AI Offer Analysis plugin (<code>ai-offer-analysis</code>, port 3011)</h1>
+  <div class="meta">Generated 2026-11-12 · Module 3 course exercise · BAML + LiteLLM · <a href="spec.md" target="_blank" rel="noopener">spec.md</a> · audit: <a href="../verification/spec-audit.md" target="_blank" rel="noopener">spec-audit.md</a></div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b>10</b><span>requirements</span></div>
+  <div class="tile"><b>12</b><span>reused assets</span></div>
+  <div class="tile"><b>8</b><span>new components</span></div>
+  <div class="tile"><b>7</b><span>binding mockups</span></div>
+  <div class="tile"><b>&le;18</b><span>Jest tests</span></div>
+  <div class="tile"><b>12/12</b><span>audit findings resolved</span></div>
+  <div class="tile"><b>low-med</b><span>risk</span></div>
+</div>
+
+<section class="card tldr" id="tldr">
+  <h3>TL;DR</h3>
+  <ul>
+    <li>New iframe plugin <code>plugins/ai-offer-analysis</code> (port 3011) clones the ai-description stack (Next.js 15 Pages Router, BAML pinned 0.220.0, Jest); one BAML function <code>AnalyzeOffer</code> goes through LiteLLM (<code>gpt-4o-mini</code>) and returns typed verdicts on description quality, category fit and price vs market.</li>
+    <li>Plugin code adds peer price stats from the product's assigned category (self excluded), the deviation %, category validation and the <code>needsReview</code> rule.</li>
+    <li>Each result is stored as a bound plugin object plus a compact <code>setData</code> summary that drives the info badge and the native "AI: needs review" list filter.</li>
+    <li>For editors the tab auto-runs only once its iframe is actually visible (the host mounts hidden tab iframes on page load), only when the analysis is missing or its fingerprint changed, and never repeats a failed auto-run in the same session.</li>
+    <li>Done means a live run is counted and attributed to <code>ai-offer-analysis</code> in the LiteLLM logs with an executable baseline/delta procedure.</li>
+    <li>Phase 11 fix cycle 1 changed parts of this contract (<code>pricedAs</code>, a peer-contamination guard with <code>marketRangeUnreliable</code>, a narrower CONTENT_BLOCKED, sanitized failure logging, <code>BAML_LOG=warn</code>, the LiteLLM upstream mapping). See <a href="#deviations">Spec deviations</a>; the code is the reference for them.</li>
+  </ul>
+  <h3>Key Decisions</h3>
+  <ul>
+    <li><b>Stack:</b> clone ai-description without its defects. <code>@boundaryml/baml</code> is pinned to exactly <code>0.220.0</code>, and Jest runs via <code>node node_modules/jest/bin/jest.js</code>, which works on Windows.</li>
+    <li><b>Staleness:</b> decided by a deterministic content fingerprint, not by <code>updatedAt</code>. <code>updatedAt</code> is the @Version column and every <code>setData</code> bumps it, which would cause a re-analysis loop.</li>
+    <li><b>Fingerprint:</b> <code>cyrb53</code> over a canonical JSON array, written as 14 hex characters. It is synchronous, has no dependencies and gives identical output in the browser and in Node/Jest. Web Crypto SHA-256 was rejected because it is async and its Jest/Node availability is uncertain.</li>
+    <li><b>Verdicts from the LLM, decisions in code:</b> the deviation %, peer stats, suggested-category validation and the <code>needsReview</code> rule (POOR, or MISMATCH, or ABOVE/BELOW with |dev| &ge; 30%) are all computed in code. Code also forces the price confidence to LOW and drops the deviation when the market range looks copied from wrong-category peers <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>.</li>
+    <li><b>EDIT gate before any host or LLM call:</b> the route decodes the JWT with shipping's base64url-safe <code>canEdit</code> and returns 403 without EDIT. The host then rejects forged tokens on <code>getProduct</code>.</li>
+    <li><b>One BAML client:</b> no fallback wrapper and no retry policy, so there is exactly one LiteLLM log entry per analysis. <code>base_url</code> is hardcoded to <code>http://localhost:4000/v1</code>.</li>
+    <li><b>Static attribution:</b> <code>user "ai-offer-analysis"</code> plus <code>metadata</code> (tags, <code>trace_name</code>, <code>generation_name</code>). The audit confirmed offline that BAML 0.220.0 puts them in the request body; the <code>x-litellm-tags</code> header stays as the fallback.</li>
+    <li><b>Timeout:</b> <code>AbortSignal.timeout(45000)</code> passed in the BAML call options (<code>signal</code>).</li>
+    <li><b>Auto-run only when the tab is visible:</b> the saved analysis loads at mount (cheap host GETs), but the auto-run waits for a non-zero iframe viewport (window <code>resize</code> when hidden). One auto-run attempt per iframe session; Retry/Re-analyze are manual.</li>
+    <li><b>Peers from the assigned category:</b> always, self excluded with <code>String(p.id) === String(product.id)</code>. The prompt tells the LLM to ignore peers of a different product type, so a mis-categorized product's price verdict comes from the market estimate. The prompt now also forbids deriving the range from peers <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>.</li>
+    <li><b>Registration:</b> a 013 Liquibase dev seed with the plugin row and two fictional, flawed demo products (<code>AOA-DEMO-*</code>). <code>ON CONFLICT DO NOTHING</code>; demo products inner-join their category so a missing category skips the row. Curl is the alternative and the way to re-register after manifest changes.</li>
+    <li><b>UI:</b> the mockups are binding. Neutral verdicts use a plain <code>tc-badge</code>. Compact layout for GOOD/FITS/FAIR sections, detailed otherwise. Re-analyze disabled while running. A native <code>&lt;progress&gt;</code> replaces the mockup's CSS spinner. Numbers use <code>en-US</code> with 2 decimals; mockup grouping and peer numbers are illustrative.</li>
+  </ul>
+  <h3>Open Questions / Risks</h3>
+  <ul>
+    <li><span class="sev warning">warning</span><b>LiteLLM <code>request_tags</code> recording.</b> BAML sends body <code>metadata.tags</code> and <code>user</code> (verified offline); whether LiteLLM <code>main-stable</code> stores them as <code>request_tags</code>/<code>end_user</code> is only known at live verification. If not, switch to the <code>x-litellm-tags</code> header and record which worked.</li>
+    <li><span class="sev warning">warning</span><b>Presidio masking</b> (PHONE, PESEL <code>\b\d{11}\b</code>) can mangle digit runs. Prices are sent as <code>USD 1799.99</code> and SKUs are not sent. Inspect the logged prompt <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>: prompts are in the LiteLLM spend logs and Langfuse, not in the plugin log.</li>
+    <li><span class="sev info">info</span><b>LLM nondeterminism:</b> price and category verdicts can flip, and a fictional brand may still yield INSUFFICIENT_DATA. Mitigations: temperature 0.1, the deterministic rule, the plain badge for uncertain verdicts, prompt wording for unknown brands, and demo expectations that need only one strongly cued flag per product.</li>
+    <li><span class="sev info">info</span><b>Visibility gate depends on browser behaviour:</b> a <code>display:none</code> iframe must report a 0&times;0 viewport and fire <code>resize</code> when shown (Chromium and Firefox do). Verification step 1 checks it.</li>
+  </ul>
+</section>
+
+<div class="toc">Contents:
+  <a href="#scope">Scope</a> · <a href="#requirements">Requirements</a> · <a href="#stories">User Stories</a> ·
+  <a href="#visual">Visual Design</a> · <a href="#reuse">Reusable vs New</a> · <a href="#tech">Technical Approach</a> ·
+  <a href="#testing">Testing</a> · <a href="#litellm">LiteLLM Verification</a> · <a href="#standards">Standards</a> ·
+  <a href="#success">Success Criteria</a> · <a href="#deviations">Spec Deviations</a> · <a href="#audit">Spec Audit Resolution</a>
+</div>
+
+<main>
+<h2 id="scope">Goal &amp; Scope</h2>
+<p class="card">Deliver a plugin on port 3011 that uses BAML structured output, with all traffic routed through LiteLLM. When an editor opens the product tab, it automatically assesses an offer's description quality, category fit and price against market norms. The result is persisted and surfaced in the tab, the info badge and the native list filter, and the LiteLLM traffic is verifiably logged.</p>
+<div class="cols">
+  <div class="card in"><h3>In scope</h3><ul>
+    <li>The new plugin <code>plugins/ai-offer-analysis</code>: BAML, API route, tab, badge, manifest</li>
+    <li>The 013 Liquibase dev seed: plugin row and 2 flawed demo products</li>
+    <li>Jest tests (domain and route); the host suite stays green</li>
+    <li>Docs: plugin README and the port, plugin and env lists</li>
+    <li>Live LiteLLM / spend logs / Langfuse verification</li>
+  </ul></div>
+  <div class="card out"><h3>Out of scope</h3><ul>
+    <li>Host Java or host frontend changes, and new host event types</li>
+    <li>A bulk or "analyze all" page, and a <code>menu.main</code> entry</li>
+    <li>Fixing the <code>server-sdk.ts</code> 204 bug or ai-description's defects</li>
+    <li>Per-user LiteLLM metadata, virtual keys, LiteLLM or Presidio config changes <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>: the user approved the <code>gpt-4o-mini</code> upstream mapping change</li>
+    <li>Currencies other than USD, and external price APIs</li>
+    <li>UI component tests for the Next.js pages, and deleting analyses or cleaning up on product delete</li>
+    <li>Re-analysis triggered by other categories or peer prices changing (known limitation; Re-analyze covers it)</li>
+  </ul></div>
+</div>
+
+<h2 id="requirements">Core Requirements</h2>
+<div class="card"><table>
+  <thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td>FR1</td><td>Plugin project <code>ai-offer-analysis-plugin</code> 1.0.0. <code>dev</code>/<code>start</code> run with <code>-p 3011</code>, and the manifest url is <code>http://localhost:3011</code>. Extension points: tab <code>/product-tab</code>, info <code>/product-badge</code>, boolean filter <code>needsReview</code>.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR2</td><td>BAML <code>AnalyzeOffer</code> returns a typed <code>OfferAnalysis</code> via <code>OfferAnalysisLlm</code>, pointed at LiteLLM <code>:4000/v1</code> with <code>gpt-4o-mini</code>, <code>env.LITELLM_API_KEY</code>, temperature 0.1 and static attribution.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR3</td><td><code>POST /api/analyze</code>: validate, EDIT gate, product + categories + peers (assigned category, self excluded), BAML with timeout, code post-processing, bound upsert, then the <code>setData</code> summary, with sanitized error mapping.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR4</td><td>Tab: load the analysis and product, recompute the fingerprint, auto-run for editors when the analysis is missing or stale <b>and the tab iframe is visible</b>, at most one auto-run attempt per iframe session, in-flight guard, mockup states, broadcast on success.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR5</td><td>Badge: reads the <code>getData</code> summary, 3 states, re-reads on a BroadcastChannel message.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR6</td><td>Deterministic fingerprint in <code>src/domain.ts</code>, shared by browser and Node.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR7</td><td>013 dev seed with the plugin row (manifest JSONB) and 2 flawed demo products. Idempotent, startup-safe, with no host test collisions.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR8</td><td>Jest tests for the domain and the route, with BAML and server-sdk mocked. Host <code>./mvnw test</code> passes.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR9</td><td>Docs: plugin README, root README, CLAUDE.md, plugins/CLAUDE.md, tech-stack, plugin-development, conventions, INDEX.</td><td><span class="badge">Must</span></td></tr>
+    <tr><td>FR10</td><td>Live verification: analyze flawed and clean products, then confirm in the LiteLLM UI, <code>/spend/logs</code> (baseline/delta) and Langfuse.</td><td><span class="badge">Must</span></td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="stories">User Stories</h2>
+<div class="stories">
+  <div class="story"><b>Editor</b>When I open the "AI Offer Analysis" tab, I want the analysis to run on its own if the product is new to the analysis or has changed, so I see current verdicts without clicking anything else. Merely visiting a product page without opening the tab spends no LLM tokens.</div>
+  <div class="story"><b>Editor</b>If an automatic run fails, I want it not to retry by itself, so a persistent gateway problem does not keep spending calls; I retry with the Retry button.</div>
+  <div class="story"><b>Editor</b>I want a Re-analyze button, so I can refresh the verdicts after editing a product.</div>
+  <div class="story"><b>Viewer</b>I want to see the last saved analysis and know whether it is out of date, without being able to spend LLM tokens.</div>
+  <div class="story"><b>Catalog manager</b>I want an "AI: needs review" switch on the product list, so I can find every flagged offer at once.</div>
+  <div class="story"><b>Any user</b>I want a one-line AI review badge under the product details, so I can see the verdict without opening the tab. Until an editor has opened the tab, it says "not analyzed yet".</div>
+  <div class="story"><b>Course participant / operator</b>I want every model call to be visible and attributable in LiteLLM and Langfuse, so I can confirm all traffic goes through the gateway.</div>
+</div>
+
+<h2 id="visual">Visual Design</h2>
+<p>Mockups in <code>analysis/design-context/</code> are binding inputs. The implementation-planner will attach <code>Visual References</code> to UI task groups. The plugin root is <code>tc-plugin</code> with 16px padding, inline styles are for layout only (no hex colors), and the tab is 600px while the badge is 60px.</p>
+<div class="card"><table>
+  <thead><tr><th>Screen / component</th><th>Implemented by</th><th>State / trigger</th></tr></thead>
+  <tbody>
+    <tr><td><a href="../analysis/design-context/mockups/analysis-tab-needs-review-editor.html">analysis-tab-needs-review-editor</a></td><td><code>product-tab.tsx</code></td><td>Editor, current analysis, <code>needsReview=true</code>: danger "Needs review" + Re-analyze; sections follow the per-section layout rule</td></tr>
+    <tr><td><a href="../analysis/design-context/mockups/analysis-tab-looks-good.html">analysis-tab-looks-good</a></td><td><code>product-tab.tsx</code></td><td><code>needsReview=false</code>: success "Looks good"; GOOD/FITS/FAIR compact, any other verdict detailed</td></tr>
+    <tr><td><a href="../analysis/design-context/mockups/analysis-tab-auto-running.html">analysis-tab-auto-running</a></td><td><code>product-tab.tsx</code></td><td>Request in flight: plain "Analyzing…", indeterminate <code>&lt;progress&gt;</code>, reason line; Re-analyze visible but <b>disabled</b></td></tr>
+    <tr><td><a href="../analysis/design-context/mockups/analysis-tab-viewer-saved-result.html">analysis-tab-viewer-saved-result</a></td><td><code>product-tab.tsx</code></td><td>Viewer with saved result; note "Product changed since this analysis. Only editors can run a new analysis." when stale; no button</td></tr>
+    <tr><td><a href="../analysis/design-context/mockups/analysis-tab-viewer-no-analysis.html">analysis-tab-viewer-no-analysis</a></td><td><code>product-tab.tsx</code></td><td>Viewer, nothing stored: "Not analyzed yet" / "An editor needs to open this tab to run the first analysis."</td></tr>
+    <tr><td><a href="../analysis/design-context/mockups/analysis-tab-error.html">analysis-tab-error</a></td><td><code>product-tab.tsx</code></td><td>POST failed: <code>tc-error</code> message from the API; a hint only for <code>CONTENT_BLOCKED</code>; Retry for editors (header Re-analyze hidden <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>); any previous result below. Subtitle and verdict badge only with a previous analysis, else no subtitle and "Not analyzed"</td></tr>
+    <tr><td><a href="../analysis/design-context/mockups/info-badge-states.html">info-badge-states</a></td><td><code>product-badge.tsx</code></td><td>Needs review + reasons / Looks good / not analyzed yet; the list filter comes from the manifest</td></tr>
+    <tr><td>component:verdict-badge</td><td>domain helper + both pages</td><td>Bad verdicts danger, good success, neutral plain; the verdict text is always shown</td></tr>
+    <tr><td>component:analysis-section-card</td><td><code>product-tab.tsx</code></td><td><code>tc-card tc-section</code>: h4 + badges, <code>tc-table</code> facts, reasoning or lists</td></tr>
+  </tbody>
+</table></div>
+<div class="card">
+  <b>Mockup values that are illustrative, not binding</b>
+  <ul>
+    <li><b>Peer numbers.</b> Peers always come from the <b>assigned</b> category, self excluded. Needs-review mockup shows Televisions peers next to "Assigned category Smart Home"; for the seeded Vistara TV the tab shows "Catalog peers (Smart Home, 3)" USD 179.99 / 179.99 / 279.99. Looks-good mockup's LG C4 peers include itself; correct is "Televisions, 2" 1,299.99 / 1,749.99 / 2,199.99 (the label shows only in the detailed table; the compact FAIR line shows just the numbers <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>).</li>
+    <li><b>Number grouping:</b> thin spaces are illustrative; the UI uses <code>en-US</code> with 2 decimals.</li>
+    <li><b>Error-state subtitle:</b> superseded by the header rule (subtitle only with a previous analysis).</li>
+    <li><b>Spinner:</b> replaced by a native indeterminate <code>&lt;progress&gt;</code>.</li>
+  </ul>
+</div>
+<div class="card">
+  <b>Badge class mapping and section layout</b>
+  <table>
+    <thead><tr><th>Section</th><th>Success / compact</th><th>Plain / detailed</th><th>Danger / detailed</th></tr></thead>
+    <tbody>
+      <tr><td>Description</td><td><span class="chip success">GOOD</span></td><td><span class="chip plain">ACCEPTABLE</span></td><td><span class="chip danger">POOR</span></td></tr>
+      <tr><td>Category</td><td><span class="chip success">FITS</span></td><td><span class="chip plain">QUESTIONABLE</span></td><td><span class="chip danger">MISMATCH</span></td></tr>
+      <tr><td>Price</td><td><span class="chip success">FAIR</span></td><td><span class="chip plain">INSUFFICIENT DATA</span> <span class="chip plain">ABOVE/BELOW &lt; 30%</span></td><td><span class="chip danger">ABOVE/BELOW &ge; 30%</span></td></tr>
+      <tr><td>Overall</td><td><span class="chip success">Looks good</span></td><td><span class="chip plain">Analyzing… / Not analyzed</span></td><td><span class="chip danger">Needs review</span></td></tr>
+    </tbody>
+  </table>
+  <p style="margin-bottom:0">Layout is per section and independent of the overall verdict (<code>isCompactSection</code>). Price badge labels: "ABOVE MARKET +46%", "FAIR −2%" (Unicode minus), "INSUFFICIENT DATA". The price section also shows "Priced as: {pricedAs}" and, when <code>marketRangeUnreliable</code> is true, "market range unreliable" instead of the range plus the note "Market estimate unreliable — it matched catalog peers from a different category." <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>.</p>
+</div>
+
+<h2 id="reuse">Reusable vs New Components</h2>
+<div class="cols">
+  <div class="card"><h3 style="margin-top:0;font-size:14px">Reused (12)</h3><table>
+    <tbody>
+      <tr><td><code>ai-description</code> scaffolding</td><td>next.config (externalDir), tsconfig, jest.config, next-env.d.ts, _document, generators.baml</td></tr>
+      <tr><td><code>ai-description/baml_src/clients.baml</code></td><td>openai provider via LiteLLM (fallback wrapper dropped)</td></tr>
+      <tr><td><code>ai-description/baml_src/main.baml</code></td><td>prompt with <code>ctx.output_format</code></td></tr>
+      <tr><td><code>ai-description/src/pages/api/generate.ts</code></td><td>POST route + <code>createServerSDK</code> + bound save</td></tr>
+      <tr><td><code>ai-description/src/__tests__/generate.test.ts</code></td><td>node-mocks-http + jest.mock pattern</td></tr>
+      <tr><td><code>plugins/server-sdk.ts</code></td><td>getProduct, getProducts, fetch, objects.save, setData</td></tr>
+      <tr><td><code>plugins/sdk.ts</code></td><td>getSDK, productId, objects.list, getData, getToken</td></tr>
+      <tr><td><code>shipping/src/domain.ts</code> <code>canEdit</code></td><td>base64url-safe JWT permission check</td></tr>
+      <tr><td><code>box-size/.../ProductBoxBadge.tsx</code></td><td>60px info badge pattern</td></tr>
+      <tr><td><code>warehouse/manifest.json</code></td><td>boolean list filter</td></tr>
+      <tr><td><code>012-insert-shipping-sample-data.yaml</code></td><td>plugin-row seed precedent</td></tr>
+      <tr><td>Host APIs + compose LiteLLM/Langfuse/Presidio</td><td>unchanged, except the LiteLLM <code>gpt-4o-mini</code> mapping to <code>openrouter/openai/gpt-4o-mini</code> <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></td></tr>
+    </tbody></table></div>
+  <div class="card"><h3 style="margin-top:0;font-size:14px">New (8)</h3><table>
+    <tbody>
+      <tr><td>Project files</td><td>package.json (BAML pinned), manifest, .env.example, .gitignore, README</td></tr>
+      <tr><td><code>baml_src/*.baml</code></td><td>OfferAnalysis contract + attributed client</td></tr>
+      <tr><td><code>src/domain.ts</code></td><td>pure shared logic (fingerprint, stats, prompt peers, rule, mappers, UI helpers, canEdit)</td></tr>
+      <tr><td><code>src/pages/api/analyze.ts</code></td><td>orchestration + ordered, sanitized error mapping + <code>llm-call</code> log line</td></tr>
+      <tr><td><code>src/pages/product-tab.tsx</code></td><td>visibility-gated auto-run / stale / viewer / error states</td></tr>
+      <tr><td><code>src/pages/product-badge.tsx</code></td><td>3-state badge + BroadcastChannel</td></tr>
+      <tr><td><code>src/__tests__/*.test.ts</code></td><td>domain + route suites</td></tr>
+      <tr><td><code>013-insert-ai-offer-analysis-plugin.yaml</code></td><td>registration + demo data</td></tr>
+    </tbody></table></div>
+</div>
+
+<h2 id="tech">Technical Approach</h2>
+<div class="flow">product page load --&gt; host mounts tab iframe hidden (display:none) --&gt; tab loads saved analysis + product (no LLM)
+editor clicks tab --&gt; iframe viewport &gt; 0 / resize --&gt; auto-run (once per iframe session) if missing or stale
+tab --POST /api/analyze (Bearer)--&gt; Next route :3011
+  route --GET /api/products/{id}, /api/categories, /api/products?category={assigned}--&gt; host :8080
+  route --b.AnalyzeOffer()--&gt; LiteLLM :4000 --Presidio--&gt; OpenAI gpt-4o-mini via OpenRouter, amended   (spend log -&gt; litellm-db, trace -&gt; Langfuse)
+  route --console.info "[ai-offer-analysis] llm-call productId=.. outcome=.. durationMs=.."
+  route --PUT objects/analysis/{id}?entityType=PRODUCT&amp;entityId={id}--&gt; host
+  route --PUT products/{id}/data {needsReview,...}--&gt; host
+tab &lt;-- 200 record --&gt; render + BroadcastChannel("ai-offer-analysis") --&gt; badge re-reads getData
+list page --pluginFilter=ai-offer-analysis:needsReview:bool:true--&gt; host</div>
+
+<details><summary>BAML schema (enums, classes, function, prompt outline, test block, client)</summary><div>
+  <table>
+    <thead><tr><th>Enum</th><th>Values</th></tr></thead>
+    <tbody>
+      <tr><td><code>DescriptionVerdict</code></td><td>GOOD · ACCEPTABLE · POOR</td></tr>
+      <tr><td><code>CategoryVerdict</code></td><td>FITS · QUESTIONABLE · MISMATCH</td></tr>
+      <tr><td><code>PriceVerdict</code></td><td>FAIR · ABOVE_MARKET · BELOW_MARKET · INSUFFICIENT_DATA (only when the product type cannot be identified; an unknown brand alone is not a reason)</td></tr>
+      <tr><td><code>Confidence</code></td><td>LOW · MEDIUM · HIGH</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Class</th><th>Fields (all with @description)</th></tr></thead>
+    <tbody>
+      <tr><td><code>DescriptionAssessment</code></td><td>verdict, score int 1–10, summary, issues[] (&le;4), suggestions[] (&le;4)</td></tr>
+      <tr><td><code>CategoryAssessment</code></td><td>verdict, suggestedCategory string? (exact name from the list), reasoning</td></tr>
+      <tr><td><code>PriceAssessment</code></td><td>pricedAs, reasoning, verdict, estimatedMarketMinUsd float?, estimatedMarketMaxUsd float?, confidence <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></td></tr>
+      <tr><td><code>OfferAnalysis</code></td><td>description, category, price</td></tr>
+      <tr><td><code>ProductInput</code></td><td>name, description ("(no description)" when empty), price "USD 1799.99", categoryName</td></tr>
+      <tr><td><code>CategoryOption</code> / <code>PeerPriceStats</code> / <code>PeerProduct</code></td><td>name + description? / categoryName, count, min, median, max (USD strings) / name, price</td></tr>
+    </tbody>
+  </table>
+  <p><b>Function:</b> <code>AnalyzeOffer(product, categories, peerStats?, peers) -&gt; OfferAnalysis</code> using client <code>OfferAnalysisLlm</code>.</p>
+  <p><b>Prompt outline</b> (says "product" throughout):</p>
+  <ol>
+    <li>Role: catalog quality analyst. All prices are in USD; never invent specs.</li>
+    <li>Product block.</li>
+    <li>Description criteria and verdict.</li>
+    <li>Category fit against the full list (name: description). The suggestion must be copied exactly from the list, or be null.</li>
+    <li>Price: typical US retail range for this product or comparable products of the same type and specs (unknown brand → estimate from comparables, LOW confidence, not INSUFFICIENT_DATA); peer stats plus up to 10 peer lines from the assigned category, which may be a different product type and must then be ignored; or "No other catalog products in this category." <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>: the type is identified first (<code>pricedAs</code>), the range must not be derived from peer prices, and peers come after the range instruction as "Catalog context".</li>
+    <li><code>{{ ctx.output_format }}</code>.</li>
+  </ol>
+  <p><b>BAML test block <code>VistaraDemoOffer</code></b> (playground / <code>baml-cli test</code>, not Jest): product <code>Vistara 65" OLED 4K TV</code>, "The best TV ever. Buy now!", <code>USD 2799.00</code>, Smart Home; the 5 seeded categories with descriptions; peerStats Smart Home, 3, <code>USD 179.99</code> / <code>USD 179.99</code> / <code>USD 279.99</code>; peers Amazon Echo Hub 8" (179.99), Philips Hue Starter Kit E26 (179.99), Google Nest Learning Thermostat 4th Gen (279.99). Asserts <code>estimatedMarketMinUsd &gt; 500</code> <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>.</p>
+  <p><b>Client <code>OfferAnalysisLlm</code>:</b> provider openai, <code>model "gpt-4o-mini"</code>, <code>api_key env.LITELLM_API_KEY</code>, <code>base_url "http://localhost:4000/v1"</code>, <code>temperature 0.1</code>, <code>user "ai-offer-analysis"</code>, <code>metadata</code> {tags ["ai-offer-analysis"], trace_name, generation_name}. No retry policy. Fallback: <code>headers { "x-litellm-tags" "ai-offer-analysis" }</code>.</p>
+</div></details>
+
+<details><summary>API contract — POST /api/analyze (incl. error classification order)</summary><div>
+  <p><b>Request:</b> <code>Authorization: Bearer &lt;JWT&gt;</code>, body <code>{productId}</code>, where <code>String(...).trim()</code> must match <code>^\d+$</code>.</p>
+  <p><b>Order:</b> method → id → bearer → <code>canEdit</code> → <code>getProduct</code> + snapshot → categories ∥ peers (assigned category) → stats + prompt peers + fingerprint → BAML (<code>signal: AbortSignal.timeout(45000)</code>) + one <code>llm-call</code> log line → <code>buildAnalysisRecord</code> → <code>objects.save</code> (bound) → <code>setData</code> summary → 200 record.</p>
+  <table>
+    <thead><tr><th>Status</th><th>code</th><th>error</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td class="pass">200</td><td>—</td><td>—</td><td>Body = stored record</td></tr>
+      <tr><td>400</td><td>BAD_REQUEST</td><td>Invalid productId.</td><td>Missing / non-numeric</td></tr>
+      <tr><td>401</td><td>UNAUTHENTICATED</td><td>Your session has expired. Please log in again.</td><td>No bearer, or host 401</td></tr>
+      <tr><td>403</td><td>FORBIDDEN</td><td>Only editors can run an analysis.</td><td>No EDIT, or host 403</td></tr>
+      <tr><td>404</td><td>PRODUCT_NOT_FOUND</td><td>Product not found.</td><td>Host 404 on getProduct</td></tr>
+      <tr><td>405</td><td>METHOD_NOT_ALLOWED</td><td>Method not allowed.</td><td>Not POST (<code>Allow: POST</code>)</td></tr>
+      <tr><td class="fail">502</td><td>CONTENT_BLOCKED</td><td>The AI gateway rejected the request (content policy). No analysis was saved.</td><td><code>BamlClientHttpError</code> 400 with a guardrail marker in <code>message</code> or <code>raw_response</code> (Presidio BLOCK) <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></td></tr>
+      <tr><td class="fail">502</td><td>LLM_TIMEOUT</td><td>The AI gateway did not respond in time. No analysis was saved.</td><td><code>BamlAbortError</code> / <code>BamlTimeoutError</code></td></tr>
+      <tr><td class="fail">502</td><td>LLM_INVALID_OUTPUT</td><td>The AI returned an unreadable result. No analysis was saved.</td><td><code>BamlValidationError</code> / <code>FinishReasonError</code></td></tr>
+      <tr><td class="fail">502</td><td>LLM_UNAVAILABLE</td><td>The AI gateway is unavailable. No analysis was saved.</td><td>Other BAML/LiteLLM errors, including non-guardrail 400s <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></td></tr>
+      <tr><td class="fail">502</td><td>HOST_ERROR</td><td>The host application could not provide or store the analysis data.</td><td>Other host errors, plugin not registered, invalid product or categories payload <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></td></tr>
+      <tr><td class="fail">500</td><td>INTERNAL</td><td>Unexpected error.</td><td>Unclassified</td></tr>
+    </tbody>
+  </table>
+  <p><b>Error classes</b> are imported from <code>@boundaryml/baml/errors</code> (identical class objects, no native addon load).</p>
+  <p><b>Classification order (first match wins):</b> 1. <code>BamlAbortError</code> / <code>BamlTimeoutError</code> → LLM_TIMEOUT (Timeout is a <code>BamlClientHttpError</code> subclass with status 408, so it must come first) · 2. <code>BamlClientHttpError</code> 400 with a guardrail marker → CONTENT_BLOCKED <em>(amended — see <a href="#deviations">Spec deviations</a>)</em> · 3. validation / finish-reason → LLM_INVALID_OUTPUT · 4. other BAML → LLM_UNAVAILABLE · 5. host errors and invalid payload → 401 / 403 / 404 (product stage) / HOST_ERROR · 6. anything else → INTERNAL.</p>
+  <p>Raw details are logged server-side only, as one sanitized line <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>. If <code>setData</code> fails after a save, the route returns 502 and the summary stays outdated until the next Re-analyze (known limitation).</p>
+</div></details>
+
+<details><summary>Stored object, setData summary, fingerprint, needsReview, peers</summary><div>
+  <p><b>Object:</b> type <code>analysis</code>, id = productId, bound to <code>{entityType: "PRODUCT", entityId: productId}</code> on every save.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Shape</th></tr></thead>
+    <tbody>
+      <tr><td>productId / fingerprint / analyzedAt / model</td><td>string / 14 hex / ISO UTC / <code>gpt-4o-mini</code></td></tr>
+      <tr><td>needsReview</td><td>boolean</td></tr>
+      <tr><td>description</td><td>{verdict, score, summary, issues[], suggestions[]}</td></tr>
+      <tr><td>category</td><td>{verdict, assigned {id, name}, suggested {id, name} | null, reasoning}</td></tr>
+      <tr><td>price</td><td>{verdict, confidence, pricedAs, productPrice, marketMin|null, marketMax|null, deviationPct int|null, marketRangeUnreliable boolean, peers {categoryName, count, min, median, max}|null, reasoning} <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></td></tr>
+    </tbody>
+  </table>
+  <p><b>Summary (setData, top level only):</b> <code>needsReview</code> (boolean), <code>descriptionVerdict</code>, <code>categoryVerdict</code>, <code>priceVerdict</code>, and <code>priceDeviationPct</code> (int, omitted when null). No fingerprint.</p>
+  <p><b>Fingerprint:</b> <code>cyrb53(JSON.stringify([name.trim(), description.trim(), price.toFixed(2), sku.trim(), category.id, category.name.trim()]))</code> written as 14 hex characters, after <code>toProductSnapshot</code> normalization (null description becomes ""). It does not cover other categories or peer prices (known limitation).</p>
+  <p><b>needsReview:</b> POOR <i>or</i> MISMATCH <i>or</i> (ABOVE/BELOW_MARKET <i>and</i> deviationPct ≠ null <i>and</i> |deviationPct| &ge; 30).</p>
+  <p><b>Deviation:</b> <code>round((price − mid)/mid·100)</code> with mid = (min+max)/2. It is null for INSUFFICIENT_DATA, a missing bound, min ≤ 0, or max &lt; min.</p>
+  <p><b>Peer stats:</b> products of the <b>assigned</b> category, excluding self via <code>String(p.id) === String(self.id)</code> (host ids are JSON numbers), keeping finite positive prices, sorted. Gives count/min/median (mean of the two middle values for an even count)/max rounded to 2 decimals, or null when there are none.</p>
+  <p><b>Prompt peers (<code>selectPromptPeers</code>):</b> same filter; when more than 10 remain, the 10 closest in price to the product (ties by name), listed by price ascending. Stats still use all peers.</p>
+  <p><b>Suggested category:</b> case-insensitive trimmed match against <code>/api/categories</code>. It is null when there is no match or the match is the assigned category.</p>
+</div></details>
+
+<details><summary>Tab (auto-run visibility gate), badge and BroadcastChannel behaviour</summary><div>
+  <ul>
+    <li><b>Tab load (at mount, even while hidden):</b> <code>getToken</code> → <code>canEdit</code>, <code>objects.list("analysis", {PRODUCT, id})</code>, and <code>getProduct</code> → fingerprint. The analysis is stale when the fingerprints differ. "Loading analysis…" is shown meanwhile <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>.</li>
+    <li><b>Why a gate:</b> the host (<code>ProductDetailPage.tsx</code>) mounts every plugin tab iframe on page load in a <code>display:none</code> panel and only toggles <code>display</code> when the tab is clicked.</li>
+    <li><b>Visibility gate:</b> visible = <code>window.innerWidth &gt; 0 &amp;&amp; window.innerHeight &gt; 0</code>. If an auto-run is due and the tab is hidden, listen for window <code>resize</code>; on the first visible <code>resize</code>, remove the listener and run. Remove it on unmount.</li>
+    <li><b>One attempt:</b> a <code>useRef</code> <code>autoRunAttempted</code> flag blocks any further auto-run in the iframe session, success or error. After an auto-run error only Retry runs again; switching tabs never re-triggers.</li>
+    <li><b>Editor:</b> otherwise shows the result plus Re-analyze. A <code>useRef</code> in-flight guard prevents double runs; Re-analyze and Retry are <code>disabled</code> while running.</li>
+    <li><b>Viewer:</b> sees the result (with a stale note when out of date), or the "Not analyzed yet" card. Never sends a POST.</li>
+    <li><b>Header:</b> subtitle "12 Nov 2026, 18:42 · gpt-4o-mini via LiteLLM" (en-GB date) only when an analysis exists; badge "Analyzing…" while running, else the shown analysis's verdict or "Not analyzed" (also in the error state).</li>
+    <li><b>Channel</b> <code>"ai-offer-analysis"</code>: message <code>{type: "analysis-saved", productId, needsReview}</code> after a 200. The badge re-reads <code>getData</code> when the productId matches and closes the channel on unmount.</li>
+    <li><b>Badge:</b> "AI review: Needs review" (danger) plus reasons in fixed order (price, category, description) such as "price +46% above market · category mismatch"; "AI review: Looks good" (success); "AI review: not analyzed yet" (plain); "AI review: unavailable" when <code>getData</code> errors.</li>
+  </ul>
+</div></details>
+
+<details><summary>Manifest &amp; 013 seed</summary><div>
+  <table>
+    <thead><tr><th>Extension point</th><th>Label</th><th>Path / key</th><th>Priority</th></tr></thead>
+    <tbody>
+      <tr><td>product.detail.tabs</td><td>AI Offer Analysis</td><td>/product-tab</td><td>90</td></tr>
+      <tr><td>product.detail.info</td><td>AI Review</td><td>/product-badge</td><td>30</td></tr>
+      <tr><td>product.list.filters</td><td>AI: needs review</td><td>needsReview (boolean)</td><td>20</td></tr>
+    </tbody>
+  </table>
+  <p><b>ChangeSet 1</b> <code>013-insert-ai-offer-analysis-plugin</code> (context dev): inserts the plugin row with the manifest JSONB, <code>ON CONFLICT (id) DO NOTHING</code>. It never updates an existing row, so manifest changes need the curl <code>PUT .../manifest</code> re-registration. Rollback deletes the plugin's objects, then the row.</p>
+  <p><b>ChangeSet 2</b> <code>013-insert-ai-offer-analysis-demo-products</code> (context dev): <code>INSERT ... SELECT nextval('product_seq'), s.*, c.id ... FROM (VALUES ...) s INNER JOIN categories c ON c.name = s.category_name ON CONFLICT (sku) DO NOTHING</code> (unique <code>uk_products_sku</code>; <code>categories.name</code> unique). A renamed or deleted category skips that row instead of aborting startup. Rollback deletes by SKU.</p>
+  <table>
+    <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Required flag (strongly cued)</th><th>Expected, LLM-dependent</th></tr></thead>
+    <tbody>
+      <tr><td><code>AOA-DEMO-TV65</code></td><td>Vistara 65" OLED 4K TV</td><td>Smart Home</td><td>2799.00</td><td>"The best TV ever. Buy now!" → POOR; MISMATCH (Televisions)</td><td>ABOVE_MARKET &ge; 30% from the market estimate. Peers shown: Smart Home, 3, 179.99 / 179.99 / 279.99</td></tr>
+      <tr><td><code>AOA-DEMO-MESH2</code></td><td>Skylink AX3000 Mesh Wi-Fi 6 System (2-Pack)</td><td>Home Appliances</td><td>19.99</td><td>MISMATCH (Networking)</td><td>Description GOOD/ACCEPTABLE; BELOW_MARKET &ge; 30% from the market estimate. Peers shown: Home Appliances, 3, 649.99 / 799.99 / 1099.95</td></tr>
+    </tbody>
+  </table>
+  <p>Collision check against <code>src/test</code>: the only search term is "trackball"; no test SKU starts with <code>AOA-</code>; no test references "Smart Home", "Networking" or "Home Appliances"; no plugin_data is seeded; assertions on seeded categories use only &ge; sizes.</p>
+</div></details>
+
+<details><summary>Project configuration</summary><div>
+  <ul>
+    <li><b>Scripts:</b> <code>dev</code> <code>next dev -p 3011</code>, <code>start</code> <code>next start -p 3011</code>, <code>test</code> <code>node node_modules/jest/bin/jest.js</code>, <code>generate</code>/<code>postinstall</code> <code>baml-cli generate</code>.</li>
+    <li><b>Dependencies:</b> <code>@boundaryml/baml</code> <code>0.220.0</code> (exact), next ^15.3.3, react ^19.2.4. devDependencies as in the template.</li>
+    <li><b>.gitignore:</b> node_modules/, .next/, baml_client/, .env, .env*.local, *.tsbuildinfo.</li>
+    <li><b>.env.example:</b> <code>LITELLM_API_KEY=sk-litellm-dev-key</code>, an optional <code>HOST_BASE_URL</code>, and comments saying to copy to <code>.env</code> and that provider keys live in <code>litellm/.env</code>. Also <code>BAML_LOG=warn</code> <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>.</li>
+    <li><b>Constants:</b> <code>PLUGIN_ID</code>, <code>OBJECT_TYPE</code>, <code>CHANNEL_NAME</code>, <code>ANALYSIS_MODEL</code>, <code>PRICE_DEVIATION_THRESHOLD_PCT=30</code>, <code>ANALYZE_TIMEOUT_MS=45000</code>, <code>MAX_PEERS_IN_PROMPT=10</code>.</li>
+  </ul>
+</div></details>
+
+<h2 id="testing">Testing Approach</h2>
+<p>2–8 focused tests per step group (the domain suite goes to 10 to cover the UI helpers). Verification runs only the new tests, plus a final host regression run.</p>
+<div class="cols">
+  <div class="card"><b>domain.test.ts (&le; 10)</b><ol>
+    <li>Fingerprint is deterministic and normalizes values</li>
+    <li>Fingerprint changes on each field</li>
+    <li><code>needsReview</code> truth table</li>
+    <li>Peer stats + prompt peers: numeric host ids, self excluded, odd/even median, empty list, 10 closest kept</li>
+    <li>Deviation: rounding and null cases</li>
+    <li>Suggested category resolution</li>
+    <li><code>canEdit</code> with base64url / READ / malformed tokens</li>
+    <li>Record builder narrowing + summary shape</li>
+    <li><code>verdictBadgeClass</code> + <code>priceBadgeLabel</code> (Unicode minus, 30% threshold)</li>
+    <li><code>toAnalysisSummary</code> (null cases) + <code>reviewReasons</code> (order, " · " join)</li>
+  </ol></div>
+  <div class="card"><b>analyze.test.ts (&le; 8)</b><ol>
+    <li>405 + <code>Allow: POST</code></li>
+    <li>400 for an invalid id</li>
+    <li>403 without EDIT; no host or BAML calls</li>
+    <li>Host 404 → 404; no BAML call</li>
+    <li>Happy path: save arguments with binding, setData summary, assigned-category <code>getProducts</code>, peers exclude self (numeric ids), USD formatting</li>
+    <li>Guardrail-marked HTTP 400 → 502 CONTENT_BLOCKED; no save, no raw details; sanitized log line <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></li>
+    <li>Classification order: Abort and Timeout (408 subclass) → LLM_TIMEOUT; generic → LLM_UNAVAILABLE; non-guardrail 400 and a 400 that only says "blocked" → LLM_UNAVAILABLE <em>(amended — see <a href="#deviations">Spec deviations</a>)</em></li>
+    <li>Unknown suggestion → <code>suggested: null</code></li>
+  </ol></div>
+</div>
+<p>BAML errors are built from <code>@boundaryml/baml/errors</code>, the module the route imports. Host regression: <code>./mvnw test</code> passes with the 013 seed (no new Java tests). UI pages (visibility gate, one-attempt rule) are covered by live and E2E verification against the mockups.</p>
+
+<h2 id="litellm">LiteLLM Verification Procedure (acceptance)</h2>
+<div class="card">
+  <p><b>Preconditions:</b> a real <code>OPENAI_API_KEY</code> in <code>litellm/.env</code> (now an OpenRouter key <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>); <code>docker compose up -d</code> with the services healthy; the host on :8080 (dev seed applied); the plugin on :3011 with <code>.env</code>.</p>
+  <p><b>Ground truth:</b> the <code>[ai-offer-analysis] llm-call ... outcome=...</code> lines in the plugin's <code>npm run dev</code> terminal (browser <code>POST /api/analyze</code> count is a cross-check). <span class="pass">ok</span> / LLM_INVALID_OUTPUT → exactly one entry each; LLM_TIMEOUT → 0 or 1 (aborted calls may still be logged; excluded from the equality); CONTENT_BLOCKED / LLM_UNAVAILABLE → no success entry.</p>
+  <p><b>Step 0 — shell setup and baseline (before any traffic):</b></p>
+  <table>
+    <thead><tr><th>Action</th><th>bash (Git Bash)</th><th>PowerShell</th></tr></thead>
+    <tbody>
+      <tr><td>Load key from <code>litellm/.env</code></td><td><div class="cmd">export LITELLM_MASTER_KEY=$(grep -E '^LITELLM_MASTER_KEY=' litellm/.env | cut -d= -f2-)</div></td><td><div class="cmd">$env:LITELLM_MASTER_KEY = ((Get-Content litellm/.env | Select-String '^LITELLM_MASTER_KEY=').Line -split '=', 2)[1]</div></td></tr>
+      <tr><td>Record start + date window</td><td><div class="cmd">START=$(date -u +%Y-%m-%dT%H:%M:%SZ); FROM=$(date -u +%Y-%m-%d); TO=$(date -u -d tomorrow +%Y-%m-%d)</div></td><td><div class="cmd">$start = [datetime]::UtcNow; $from = $start.ToString('yyyy-MM-dd'); $to = $start.AddDays(1).ToString('yyyy-MM-dd')</div></td></tr>
+      <tr><td>Count tagged rows (run once for the baseline, again after step 1)</td><td><div class="cmd">curl -s -H "Authorization: Bearer $LITELLM_MASTER_KEY" "http://localhost:4000/spend/logs?start_date=$FROM&amp;end_date=$TO&amp;summarize=false" | jq '[.[] | select((((.request_tags // []) | index("ai-offer-analysis")) != null) or .end_user == "ai-offer-analysis")] | length'</div>jq is optional; without it use the PowerShell variant or the UI filter.</td><td><div class="cmd">$logs = Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:LITELLM_MASTER_KEY" } -Uri "http://localhost:4000/spend/logs?start_date=$from&amp;end_date=$to&amp;summarize=false"; $hits = @($logs | Where-Object { ((@($_.request_tags) -join ',') -like '*ai-offer-analysis*') -or $_.end_user -eq 'ai-offer-analysis' }); $hits.Count</div></td></tr>
+    </tbody>
+  </table>
+  <p>If an older LiteLLM returns an aggregate instead of a list, drop the date and <code>summarize</code> parameters; the baseline still isolates the run.</p>
+  <ol class="steps">
+    <li><b>Trigger.</b> As <code>editor</code>, open Vistara and stay on Details: <b>no</b> <code>llm-call</code> line, badge "not analyzed yet". Click the AI tab: auto-run → Needs review (POOR and/or MISMATCH); back on Details the badge shows the new verdict without reload; re-opening the tab adds no line. LG C4 tab → Looks good, peers "Televisions, 2" (compact FAIR line shows only the numbers <em>(amended — see <a href="#deviations">Spec deviations</a>)</em>). Skylink tab → Needs review with MISMATCH (price flag expected, not required). Click Re-analyze once. Switch on the list filter: both demo products. As <code>viewer</code>, opening a tab adds no line. Fresh database: 4 lines, all <code>ok</code> (products already analyzed earlier make no call; the actual lines are the truth).</li>
+    <li><b>LiteLLM UI</b> at <code>http://localhost:4000/ui</code> (admin / <code>LITELLM_MASTER_KEY</code>), Logs after the start time: one entry per <code>llm-call</code> line, <code>gpt-4o-mini</code>, success, tag and/or end user <code>ai-offer-analysis</code>, prompt shows unmasked <code>USD</code> prices, response JSON matches <code>OfferAnalysis</code>.</li>
+    <li><b>Spend logs API:</b> rerun the count. <b>Delta = new − baseline</b> must equal the expected entries (4 on a fresh database). Note model, spend and tokens. Delta 0 with lines present → attribution not recorded → step 6.</li>
+    <li><b>Langfuse</b> at <code>http://localhost:3100</code> (admin@aj.local / admin123), project "AJ Plugins": tagged traces with input and output.</li>
+    <li><b>No bypass:</b> only <code>LITELLM_API_KEY</code> and the :4000 base_url in the plugin. Optionally stop <code>litellm</code>, confirm the 502 "AI gateway is unavailable…", then restart it.</li>
+    <li><b>Fallback:</b> if there is no tag and no end user, add the <code>x-litellm-tags</code> header, repeat, and document which mechanism worked.</li>
+    <li><b>Record</b> start time, <code>llm-call</code> count and outcomes, baseline and delta, tag/end-user evidence and Langfuse trace ids in the verification report.</li>
+  </ol>
+</div>
+
+<h2 id="docs">Documentation Updates</h2>
+<div class="card"><table>
+  <tbody>
+    <tr><td><code>plugins/ai-offer-analysis/README.md</code></td><td>Purpose, data flow, setup, registration (013 seed + curl with admin token from <code>POST /api/auth/login</code>), <b>re-register via manifest PUT after manifest changes</b>, when the analysis runs (tab visible, once per session), tests, LiteLLM verification (bash + PowerShell), known issues and limitations (server-sdk 204, Presidio, nondeterminism, setData partial failure, staleness scope)</td></tr>
+    <tr><td><code>README.md</code></td><td>Tree, port line (3011 taken; next business module 3012), env copy, npm install</td></tr>
+    <tr><td><code>CLAUDE.md</code></td><td>Plugin list (:3011, Next.js + BAML, Jest, .env); compose AI tooling sentence</td></tr>
+    <tr><td><code>plugins/CLAUDE.md</code></td><td>Reference-plugin entry + port rule</td></tr>
+    <tr><td><code>.maister/docs/project/tech-stack.md</code></td><td>Plugin table row, port rule, Jest line</td></tr>
+    <tr><td><code>standards/plugins/plugin-development.md</code></td><td>Fixed Dev Ports</td></tr>
+    <tr><td><code>standards/global/conventions.md</code></td><td>Env-file list + copy command</td></tr>
+    <tr><td><code>.maister/docs/INDEX.md</code></td><td>Tech-stack and port summaries</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="standards">Standards Compliance</h2>
+<div class="card"><ul>
+  <li><b>plugin-development:</b> naming and version, shared SDK imports, mandatory <code>tc-*</code>, manifest as source of truth, storage choice, fixed port with <code>-p</code>, try/catch for SDK calls.</li>
+  <li><b>plugin-auth:</b> <code>getToken</code> → plugin backend → <code>createServerSDK(id, undefined, req)</code>; JWT permissions decoded base64url-safe.</li>
+  <li><b>error-handling / validation:</b> typed classification, sanitized messages, server-side id validation, verdict allow-lists, category validation.</li>
+  <li><b>conventions:</b> <code>.env</code> from <code>.env.example</code>; provider keys only in <code>litellm/.env</code>; course folders untouched.</li>
+  <li><b>minimal-implementation:</b> no bulk page, virtual keys, SDK fix, retry or fallback wrappers, or unused summary fields.</li>
+  <li><b>migrations:</b> <code>013-insert-...</code>, dev context, rollbacks; no schema change and no jOOQ regeneration.</li>
+  <li><b>components / css / accessibility:</b> named functions (default export only because Next.js requires it), no hex colors, <code>import type</code>, verdict text with color, <code>aria-live</code>, labelled progress.</li>
+  <li><b>backend-testing:</b> the host suite stays green with the seed.</li>
+</ul></div>
+
+<h2 id="success">Success Criteria</h2>
+<div class="card"><ul>
+  <li><code>npm install &amp;&amp; npm test</code> passes on Windows and bash (≤ 18 tests: domain ≤ 10, route ≤ 8); <code>npm run build</code> succeeds.</li>
+  <li><code>./mvnw test</code> passes; on a fresh dev database the plugin row and demo products exist; re-running Liquibase is a no-op; a renamed/deleted demo category skips that product without breaking startup.</li>
+  <li>Tab, badge and "AI: needs review" switch are visible on :3011.</li>
+  <li>Editor: a product page visit without opening the tab makes no <code>/api/analyze</code> call. The first tab open for a new or changed product runs exactly one analysis. Re-opening without changes makes no LLM call. Changing name, description, price, SKU or category, or renaming the assigned category, triggers exactly one re-run on the next tab open. A failed auto-run is not repeated in the same page session.</li>
+  <li>Viewer: never calls <code>/api/analyze</code>.</li>
+  <li>Each demo product shows Needs review with at least its strongly cued flag (TV: POOR and/or MISMATCH; Skylink: MISMATCH); peer rows show the assigned category without the product itself. The badge refreshes without a reload, and the filter finds the flagged products.</li>
+  <li>Only sanitized error messages reach the browser.</li>
+  <li>LiteLLM: delta of tagged <code>/spend/logs</code> rows over the baseline equals the expected count from the <code>llm-call</code> lines (aborts excluded); attributed by tag or end user; unmasked USD prices in the prompt; Langfuse traces present; evidence recorded; procedure (bash + PowerShell) in the README.</li>
+  <li>All listed docs mention the plugin and port 3011.</li>
+</ul></div>
+
+<h2 id="deviations">Spec deviations (Phase 11 fix cycle 1)</h2>
+<p>These changes came out of implementation verification (fix cycle 1 and the fix round after re-verification). Where they conflict with the text above, they win and the code is the reference. Inline text that still states the old contract is marked "(amended — see Spec deviations)".</p>
+<div class="card"><table>
+  <thead><tr><th>ID</th><th>Deviation</th><th>What changed</th><th>Why / known limits</th></tr></thead>
+  <tbody>
+    <tr><td><span class="sev info">a</span></td><td>Product type pricing (<code>pricedAs</code>)</td><td><code>PriceAssessment</code> gets <code>pricedAs: string</code> as its first field (the product type priced, never the peers); <code>reasoning</code> moves before <code>verdict</code> and the numbers; min/max refer to "the product type in pricedAs". Prompt Task 3: identify the type first, estimate the range from general market knowledge, the range "must NOT be derived from the catalog peer prices"; peers relabelled "Catalog context (... may be a different product type)" and placed after the range instruction; different-type peers are ignored for both range and verdict. BAML test block asserts <code>estimatedMarketMinUsd &gt; 500</code>. The stored record carries <code>pricedAs</code> (trimmed, <code>""</code> when missing or in older records); the tab shows a 12px "Priced as: {pricedAs}" line when it is non-empty.</td><td>Live run: the Vistara TV was priced against its Smart Home peers (ABOVE_MARKET +1117%). After the fix: "65-inch OLED 4K TV", FAIR +12%.</td></tr>
+    <tr><td><span class="sev info">b</span></td><td>Peer-contamination guard (<code>marketRangeUnreliable</code>)</td><td>In <code>buildAnalysisRecord</code>: category MISMATCH, peer stats present, both bounds non-null, and the LLM range inside the peer range ±5% (<code>min &ge; peers.min × 0.95</code>, <code>max &le; peers.max × 1.05</code>) → <code>deviationPct</code> null, <code>confidence</code> LOW, <code>marketRangeUnreliable</code> true. The LLM verdict and <code>marketMin</code>/<code>marketMax</code> are stored unchanged; a null deviation cannot raise <code>needsReview</code> (MISMATCH already does). Otherwise the flag is false; <code>toOfferAnalysis</code> reads a missing flag as false. UI: "market range unreliable" (compact) or "unreliable" (detailed table cell) instead of the numbers, plus the note "Market estimate unreliable — it matched catalog peers from a different category."</td><td>A code-side override of the LLM's confidence (narrow exception to "Verdicts from the LLM, decisions in code"). Limits: may null a genuine range of a mismatched product whose real range falls inside the peer range (e.g. a USD 300 soundbar under Smart Home with peers 100–450); QUESTIONABLE verdicts and partial overlaps are not covered; the price verdict badge is still the LLM's.</td></tr>
+    <tr><td><span class="sev info">c</span></td><td>CONTENT_BLOCKED only for guardrail rejections</td><td>Requires <code>BamlClientHttpError</code> 400 <b>and</b> a marker (<code>/guardrail|presidio|blocked pii|pii entit/i</code>) in <code>message</code> or <code>raw_response</code>, matching LiteLLM's "Blocked PII entity detected: &lt;TYPE&gt; by Guardrail: &lt;name&gt;". <code>detailed_message</code> is not scanned. Every other 400 (unknown model, context overflow, "not allowed" parameter, a generic "blocked") → <code>LLM_UNAVAILABLE</code>.</td><td>LiteLLM also answers 400 for configuration errors; <code>detailed_message</code> may carry product text.</td></tr>
+    <tr><td><span class="sev info">d</span></td><td>Failure log format</td><td><code>console.error</code> writes one sanitized line: <code>[ai-offer-analysis] analyze failed productId=&lt;id&gt; stage=&lt;stage&gt; code=&lt;code&gt; error=&lt;name&gt;[ status=&lt;http&gt;] message="&lt;message&gt;"</code>, whitespace collapsed and cut to 200 characters. The error object, prompt and raw LLM output are never logged.</td><td>BAML errors carry product text not yet masked by Presidio. Limit: the 200 characters may still include the start of the LLM output or a host body (local server log only).</td></tr>
+    <tr><td><span class="sev info">e</span></td><td><code>BAML_LOG=warn</code></td><td>The plugin <code>.env.example</code> sets <code>BAML_LOG=warn</code>. The plugin <code>.env</code> holds <code>LITELLM_API_KEY</code>, plus the optional <code>HOST_BASE_URL</code> and <code>BAML_LOG=warn</code>.</td><td>Keeps BAML from echoing prompts and responses (unmasked product text) to stdout. Prompts are inspected in the LiteLLM spend logs (<code>proxy_server_request</code>) and Langfuse.</td></tr>
+    <tr><td><span class="sev warning">f</span></td><td>LiteLLM config change (overrides Out of Scope)</td><td><code>litellm/config.yaml</code>: <code>gpt-4o-mini</code> → <code>openrouter/openai/gpt-4o-mini</code>, key from <code>OPENAI_API_KEY</code>, which now holds an OpenRouter key. Shared by ai-description and ai-offer-analysis; clients keep the logical name. Presidio and the rest unchanged.</td><td>User-approved exception to "LiteLLM or Presidio config changes". Documented in <code>litellm/.env.example</code>, the root README, <code>conventions.md</code> and the plugin README.</td></tr>
+    <tr><td><span class="sev info">g</span></td><td>Earlier accepted deviations</td><td>"Invalid categories payload" → <code>HOST_ERROR</code> (route matches <code>^Invalid \w+ payload$</code>); Re-analyze hidden in the error state (Retry is the only run button); a "Loading analysis…" state during the initial host GETs; the compact FAIR price line shows the peer numbers without the "(Televisions, 2)" label, which appears only in the detailed table.</td><td>Implementation phase, confirmed by the completeness check.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="audit">Spec Audit Resolution</h2>
+<div class="card"><table>
+  <thead><tr><th>ID</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td><span class="sev warning">M1</span></td><td>Hidden tab iframes auto-run on product page load</td><td><span class="resolved">Resolved (user decision).</span> Auto-run only when the iframe is visible (non-zero viewport, else wait for <code>resize</code>); saved analysis still loads at mount; one auto-run attempt per iframe session. Stories, FR4, tab behaviour, verification step 1 and success criteria updated.</td></tr>
+    <tr><td><span class="sev warning">M2</span></td><td>TV demo peers contradict its seeded category</td><td><span class="resolved">Resolved.</span> Peers always from the assigned category, self excluded; real peer values in the demo table; mockup peer numbers marked illustrative; BAML test args specified; prompt ignores non-comparable peers so the TV price flag comes from the market estimate.</td></tr>
+    <tr><td><span class="sev warning">M3</span></td><td>LiteLLM count check not executable</td><td><span class="resolved">Resolved.</span> Key loaded from <code>litellm/.env</code>, start time recorded, date window + <code>summarize=false</code>, baseline/delta, bash + PowerShell variants, <code>llm-call</code> log line as ground truth, timeouts excluded.</td></tr>
+    <tr><td><span class="sev info">L1</span></td><td>Error-classification order unspecified</td><td><span class="resolved">Resolved.</span> Abort/Timeout checked before <code>BamlClientHttpError</code>; route test 7 covers Timeout.</td></tr>
+    <tr><td><span class="sev info">L2</span></td><td>Error-class import loads the native module</td><td><span class="resolved">Resolved.</span> Route imports from <code>@boundaryml/baml/errors</code>.</td></tr>
+    <tr><td><span class="sev info">L3</span></td><td>Self-exclusion type-unsafe</td><td><span class="resolved">Resolved.</span> <code>String(p.id) === String(self.id)</code>; numeric-id fixtures.</td></tr>
+    <tr><td><span class="sev info">L4</span></td><td>INSUFFICIENT_DATA vs fictional brands</td><td><span class="resolved">Resolved.</span> INSUFFICIENT_DATA only for an unidentifiable product type; unknown brands priced from comparables; "product" wording; tolerant demo expectations (Skylink moved to Home Appliances for a MISMATCH cue).</td></tr>
+    <tr><td><span class="sev info">L5</span></td><td>Scalar category subquery can block startup</td><td><span class="resolved">Resolved.</span> <code>INSERT ... SELECT ... INNER JOIN categories ... ON CONFLICT (sku) DO NOTHING</code>.</td></tr>
+    <tr><td><span class="sev info">L6</span></td><td>UI ambiguities</td><td><span class="resolved">Resolved.</span> Per-section layout; Re-analyze disabled; prompt peers = 10 closest in price, ascending; error subtitle rule, mockup superseded.</td></tr>
+    <tr><td><span class="sev info">L7</span></td><td>UI domain helpers untested</td><td><span class="resolved">Resolved.</span> Domain tests 9–10; suite cap 10.</td></tr>
+    <tr><td><span class="sev info">L8</span></td><td>Staleness scope narrower than inputs</td><td><span class="resolved">Resolved.</span> Known limitation in README and Out of Scope.</td></tr>
+    <tr><td><span class="sev info">L9</span></td><td>Manifest duplicated in the seed</td><td><span class="resolved">Resolved.</span> README and seed section require the manifest PUT after changes.</td></tr>
+  </tbody>
+</table></div>
+</main>
+</body>
+</html>

@@ -1,0 +1,210 @@
+orchestrator:
+  started_phase: phase-1
+  completed_phases: [phase-1, phase-2, phase-4, phase-5, phase-6, phase-7, phase-8, phase-10, phase-11, phase-12, phase-13, phase-14]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    sequential: null
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    skip_test_suite: false
+    e2e_enabled: true
+    user_docs_enabled: true
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: true
+  created: "2026-11-12T17:26:15Z"
+  updated: "2026-11-12T20:15:25Z"
+  task_path: .maister/tasks/development/2026-11-12-ai-offer-analysis-plugin
+  task_ids: {}
+
+task:
+  title: AI offer analysis plugin (BAML + LiteLLM)
+  description: >-
+    Module 3 (Enterprise AI Architecture) exercise. Create a plugin integrated with the
+    platform backend that uses BAML to call an LLM with structured output, all requests
+    routed through LiteLLM. The plugin automatically checks the product description
+    quality, verifies the assigned category fits, and assesses whether the price deviates
+    significantly from market norms. Plugin served on port 3011. After implementation,
+    verify in the LiteLLM panel that all model traffic is processed and visible in logs.
+  status: completed
+  tags: [plugin, ai, baml, litellm, module-3]
+  priority: null
+
+task_context:
+  risk_level: low-medium
+  clarifications_resolved: true
+  scope_expanded: false
+  architecture_decision: "Clone ai-description stack: Next.js 15 Pages Router, BAML pinned 0.220.0, Jest; 013 Liquibase dev seed"
+  tech_clarified: true
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: false
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: true
+  research_reference:
+    path: null
+    research_question: null
+    research_type: null
+    confidence_level: null
+  design_reference:
+    source: phase-4-generation
+    product_design_path: null
+    mockup_count: 7
+    has_brief: false
+    index_path: analysis/design-context/INDEX.md
+  design_resources:
+    ran: true
+    standards:
+      - {path: .maister/docs/standards/plugins/plugin-development.md, topic: plugin-ui.css tc-* classes}
+      - {path: .maister/docs/standards/frontend/css.md, topic: css}
+      - {path: .maister/docs/standards/frontend/components.md, topic: components}
+      - {path: .maister/docs/standards/frontend/accessibility.md, topic: a11y}
+    design_system:
+      - {kind: css-var, path: src/main/frontend/public/assets/plugin-ui.css, note: "tc-* classes; no warning badge"}
+    skill_hints: []
+    found_any: true
+  project_context:
+    project_doc_paths:
+      - .maister/docs/project/tech-stack.md
+      - .maister/docs/project/architecture.md
+    course_materials:
+      - _docs/AJ_M03L02_prezentacja.pdf
+      - _docs/AJ_M03L03_prezentacja.pdf
+      - _docs/AJ_M03L06_transkrypcja.pdf
+  phase_summaries:
+    codebase_analysis:
+      summary: "plugins/ai-description (Next.js 15 + BAML 0.220 + LiteLLM) covers ~90% of the pattern; new ai-offer-analysis plugin on 3011 is a clone plus new BAML function, /api/analyze route, tab UI, 013 dev registration seed and docs. No host backend changes needed."
+      key_files: [plugins/ai-description/baml_src/clients.baml, plugins/ai-description/src/pages/api/generate.ts, plugins/ai-description/src/pages/product-tab.tsx, plugins/server-sdk.ts, plugins/sdk.ts, plugins/CLAUDE.md, litellm/config.yaml, plugins/shipping/src/domain.ts, src/main/resources/db/changelog/2026/012-insert-shipping-sample-data.yaml]
+      primary_language: TypeScript
+      decisions: []
+      risks: []
+      artifacts:
+        - {path: analysis/codebase-analysis.md, label: Codebase analysis, html: null}
+    clarifications:
+      - "Trigger: auto-run on tab open when no stored/stale analysis; Re-analyze button"
+      - "Viewers see saved results only; backend refuses LLM calls without EDIT"
+      - "Surface via setData: product.list.filters Needs review + product.detail.info badge"
+      - "LiteLLM attribution via request metadata/tags on the shared key"
+    gap_analysis:
+      summary: "Purely additive plugin (Next.js + BAML via LiteLLM) with tab, info badge and needsReview list filter plus a 013 dev seed; no host changes. Critical finding: updatedAt is the @Version column bumped by every setData, so updatedAt-based staleness would loop."
+      integration_points:
+        - "manifest: product.detail.tabs /product-tab, product.detail.info badge, product.list.filters needsReview boolean"
+        - "013-insert-ai-offer-analysis-plugin.yaml (dev, ON CONFLICT DO NOTHING)"
+        - "LiteLLM :4000/v1 via BAML openai client (gpt-4o-mini)"
+        - "host REST: GET product, GET /api/products?category=, GET /api/categories, PUT objects, PUT products/{id}/data"
+      decisions: []
+      risks:
+        - "Presidio phone/PESEL masking may mangle digit runs (prices, SKUs) in the prompt"
+        - "BAML 0.220 metadata passthrough to LiteLLM must be verified"
+        - "Seed loads in host tests (liquibase contexts=dev) - must not collide with test data"
+      artifacts:
+        - {path: analysis/gap-analysis.md, label: Gap analysis, html: null}
+    scope_clarifications:
+      summary: "8 scope decisions taken, all recommended options: content-fingerprint staleness, LLM+peer price grounding, full category list, deterministic needsReview rule, flawed demo seed, BroadcastChannel badge sync, server-sdk 204 left, static LiteLLM tags."
+      scope_expanded: false
+      decisions:
+        - {decision: "Staleness via content fingerprint hash", rationale: "updatedAt is @Version and bumped by setData"}
+        - {decision: "Price: LLM knowledge + in-catalog peer stats", rationale: "User choice"}
+        - {decision: "Pass all categories; validate suggestion in code", rationale: "User choice"}
+        - {decision: "needsReview deterministic rule in code (>=30% price deviation)", rationale: "User choice"}
+        - {decision: "Seed 1-2 flawed demo products in 013", rationale: "User choice"}
+        - {decision: "BroadcastChannel tab -> badge refresh", rationale: "User choice"}
+        - {decision: "Leave server-sdk 204 bug, known issue", rationale: "User choice"}
+        - {decision: "Static LiteLLM tags in clients.baml", rationale: "User choice"}
+      risks: []
+      artifacts:
+        - {path: analysis/scope-clarifications.md, label: Scope clarifications, html: null}
+    ui_mockups:
+      summary: "7 HTML mockups (format html) bound to plugin-ui.css: 6 tab states (needs-review editor, looks good, auto-running, viewer stale, viewer none, error) + info badge states; list filter is host-native."
+      components_designed: [verdict-badge, analysis-section-card]
+      decisions:
+        - {decision: "Neutral/uncertain verdicts use plain tc-badge", rationale: "plugin-ui.css has no warning class"}
+      risks: []
+      artifacts:
+        - {path: analysis/design-context/INDEX.md, label: Design index, html: null}
+        - {path: analysis/design-context/mockups/analysis-tab-needs-review-editor.html, label: Tab - needs review, html: null}
+        - {path: analysis/design-context/mockups/info-badge-states.html, label: Info badge states, html: null}
+    design:
+      summary: "Tab (600px) with header verdict + Re-analyze and three tc-card sections; 60px info badge; see INDEX.md"
+      screen_count: 7
+      component_count: 2
+      index_path: analysis/design-context/INDEX.md
+    specification:
+      summary: "10 FRs: Next.js+BAML plugin on 3011, one AnalyzeOffer BAML function via LiteLLM gpt-4o-mini; code computes deviation/peer stats/needsReview; cyrb53 content fingerprint for staleness; EDIT gate before LLM; 013 seed with plugin row + 2 flawed demo products; 7-step LiteLLM verification as acceptance."
+      decisions:
+        - {decision: "Fingerprint = cyrb53 over canonical JSON array, 14 hex chars, shared in domain.ts", rationale: "Sync, identical in browser/Node/Jest; updatedAt unusable"}
+        - {decision: "LLM returns verdicts only; code computes deviation, peer stats, category validation, needsReview", rationale: "Deterministic and testable"}
+        - {decision: "Single BAML client, no fallback/retry, temperature 0.1, 45s AbortSignal timeout", rationale: "Exactly one LiteLLM log entry per analysis"}
+        - {decision: "Static LiteLLM attribution: user + metadata tags; x-litellm-tags header fallback", rationale: "Filterable logs without virtual keys"}
+        - {decision: "Native <progress> instead of CSS spinner", rationale: "No custom CSS allowed; plugin-ui.css has no spinner"}
+      risks:
+        - "BAML 0.220 metadata passthrough to LiteLLM unverified"
+        - "Presidio may mask digit runs; prices sent as 'USD 1799.99', SKUs omitted"
+        - "LLM nondeterminism: demo verdicts not guaranteed"
+        - "013 seed loads in host tests; ./mvnw test must run"
+      artifacts:
+        - {path: analysis/requirements.md, label: Requirements, html: null}
+        - {path: implementation/spec.md, label: Specification, html: implementation/spec.html}
+    implementation_plan:
+      summary: "9 task groups / 58 steps: scaffold, BAML contract, domain (10 tests), /api/analyze (8 tests), UI pages (7 screens), 013 seed, docs, test review, live LiteLLM run. Visual coverage 9/9."
+      task_groups: 9
+      dependencies: "G2,G3 <- G1; G4 <- G2+G3; G5 <- G3; G6 <- G1; G7 <- G1,G4,G6; G8 <- G1-G7; G9 <- G1-G8"
+      decisions:
+        - {decision: "G2 and G3 can run in parallel", rationale: "domain.ts never imports baml_client"}
+        - {decision: "Host regression: ./mvnw test -Dskip.npm -Dskip.installnodenpm -Dskip.jooq.generation=true", rationale: "No schema change; jOOQ sources exist"}
+        - {decision: "G9 live LiteLLM run last, may be deferred to verification", rationale: "Environment-dependent"}
+      risks:
+        - "UI pages have no Jest tests; rely on tsc, live run and E2E"
+        - "Seed manifest JSONB can drift from manifest.json (G6 deep-equal check)"
+      artifacts:
+        - {path: implementation/implementation-plan.md, label: Implementation plan, html: implementation/implementation-plan.html}
+        - {path: implementation/visual-coverage.md, label: Visual coverage, html: null}
+    implementation:
+      summary: "9/9 groups, 58 steps in 6 waves. Plugin plugins/ai-offer-analysis (Next.js + BAML via LiteLLM) + 013 seed + docs. 55 Jest cases, host 159/159, build OK. Live run: 4 analyses = 4 LiteLLM spend-log rows tagged ai-offer-analysis + Langfuse traces."
+      decisions:
+        - {decision: "litellm/config.yaml: gpt-4o-mini -> openrouter/openai/gpt-4o-mini", rationale: "OPENAI_API_KEY holds an OpenRouter key; user decision"}
+        - {decision: "Invalid categories payload -> HOST_ERROR", rationale: "Host-origin error; accepted deviation"}
+        - {decision: "Attribution via BAML body user + metadata.tags; header fallback not needed", rationale: "LiteLLM recorded end_user and request_tags"}
+      risks:
+        - "LLM used Smart Home peers as market range for demo TV (+1117% deviation)"
+        - "LiteLLM UI not checked directly (master key) - same rows verified in DB"
+      artifacts:
+        - {path: implementation/work-log.md, label: Work log, html: null}
+    architecture_decision:
+      decision: "Clone ai-description stack (Next.js Pages Router + BAML 0.220.0 + Jest)"
+      summary: "Confirmed by user in Phase 5 requirements round"
+
+verification_context:
+  e2e: {verdict: go_with_caveats, scenarios: "10/10 pass", llm_calls: 2, visual_fidelity: "8 match / 1 coverage gap / 0 drift", findings: {critical: 0, major: 0, minor: 1, cosmetic: 2}}
+  spec_audit:
+    verdict: pass-with-concerns
+    counts: {critical: 0, high: 0, medium: 3, low: 9}
+    fixes_applied_to_spec: true
+    m1_decision: "Auto-run only when the tab iframe is visible (non-zero viewport / resize), not on page load"
+  last_status: passed_with_issues
+  issues_found:
+    - {id: 1, severity: warning, source: code_review, description: "Market range copies wrong-type peer prices (+1117% demo TV)", fixable: true}
+    - {id: 2, severity: warning, source: code_review, description: "OpenRouter mapping repo-wide; litellm/.env.example mismatch", fixable: true}
+    - {id: 3, severity: warning, source: code_review, description: "Any BAML 400 -> CONTENT_BLOCKED", fixable: true}
+    - {id: 4, severity: warning, source: code_review, description: "Missing tests: no bearer / host 401 before LLM", fixable: true}
+    - {id: 5, severity: warning, source: production, description: "Raw BAML error with prompt logged", fixable: true}
+    - {id: 6, severity: warning, source: production, description: "BAML_LOG not set", fixable: true}
+    - {id: 7, severity: warning, source: reality, description: "LiteLLM UI not checked directly (user action)", fixable: false}
+  issue_counts: {critical: 0, warning: 1, info: 7}
+  fix_round_2: {fixed: [R1, R3, R4, R5], tests: "plugin 59/59, tsc clean, build OK"}
+  cycle_2: {status: passed_with_issues, tests: "plugin 58/58, host 159/159, no regressions", open_warnings: ["Spec not amended for fix-cycle deviations", "LiteLLM UI not checked directly (user)"]}
+  fixes_applied:
+    - {issue: 1, fix: "BAML PriceAssessment pricedAs + reasoning first, prompt forbids peer-derived range; domain guard nulls deviation and sets LOW when MISMATCH and range inside peer range; Priced as line in tab", at: "2026-11-12T19:36:22Z"}
+    - {issue: 2, fix: "litellm/config.yaml reads OPENROUTER_API_KEY; .env.example + README + conventions.md updated", at: "2026-11-12T19:36:22Z"}
+    - {issue: 3, fix: "CONTENT_BLOCKED only for guardrail-marked 400s; other 400 -> LLM_UNAVAILABLE", at: "2026-11-12T19:36:22Z"}
+    - {issue: 4, fix: "Route tests: missing bearer 401, host 401 before LLM", at: "2026-11-12T19:36:22Z"}
+    - {issue: 5, fix: "Failure log = sanitized single line (name, status, truncated message)", at: "2026-11-12T19:36:22Z"}
+    - {issue: 6, fix: "BAML_LOG=warn in plugin .env.example + README", at: "2026-11-12T19:36:22Z"}
+  decisions_made:
+    - {decision: "Fix issues 1,3,4,5,6", at: "2026-11-12T19:31:55Z"}
+    - {decision: "Issue 2: config reads new OPENROUTER_API_KEY; user adds key to litellm/.env", at: "2026-11-12T19:31:55Z"}
+  reverify_count: 2

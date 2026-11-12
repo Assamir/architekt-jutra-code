@@ -36,7 +36,7 @@ npm run lint
 npm test             # vitest run; single file: npx vitest run src/test/pages.test.tsx
 ```
 
-Plugins (`plugins/<name>`): `npm run dev`. `warehouse` (:3001), `box-size` (:3002) and `shipping` (:3010) are Vite apps; `ai-description` (:3003) is Next.js + BAML (`npm run generate` regenerates `baml_client`; tests via Jest) and needs `plugins/ai-description/.env` plus `litellm/.env` (copy from `.env.example`).
+Plugins (`plugins/<name>`): `npm run dev`. `warehouse` (:3001), `box-size` (:3002) and `shipping` (:3010) are Vite apps; `ai-description` (:3003) is Next.js + BAML (`npm run generate` regenerates `baml_client`; tests via Jest) and needs `plugins/ai-description/.env` plus `litellm/.env` (copy from `.env.example`). `ai-offer-analysis` (:3011) is also Next.js + BAML (tests via Jest, `npm test`) and needs `plugins/ai-offer-analysis/.env` plus `litellm/.env`; see `plugins/ai-offer-analysis/README.md` for registration and the LiteLLM verification procedure.
 
 MCP server (`mcp-server/`, own Maven wrapper, port 8081): `cd mcp-server && ./mvnw spring-boot:run` / `./mvnw test`.
 
@@ -60,7 +60,7 @@ MCP server (`mcp-server/`, own Maven wrapper, port 8081): `cd mcp-server && ./mv
 Separate Spring Boot app exposing aj products/categories as MCP tools. It validates incoming bearer tokens (JWT or introspection against the host's OAuth2 server), exchanges them, and calls the host REST API via `AjApiClient` (`AJ_BACKEND_URL`, default `http://localhost:8080`).
 
 ### Docker Compose (`compose.yml`)
-Besides the app's Postgres, it runs the AI tooling for `ai-description`: LiteLLM (LLM gateway, config in `litellm/`), Langfuse (+ ClickHouse, MinIO, Redis), and Presidio (PII anonymization).
+Besides the app's Postgres, it runs the AI tooling for `ai-description` and `ai-offer-analysis`: LiteLLM (LLM gateway, config in `litellm/`), Langfuse (+ ClickHouse, MinIO, Redis), and Presidio (PII anonymization).
 
 ## Testing conventions (summary — full rules in `.maister/docs/standards/testing/`)
 - Integration-first: `@SpringBootTest` + `@Import(TestcontainersConfiguration.class)`; MockMvc tests must also import `SecurityMockMvcConfiguration` (Spring Boot 4 / Security 7). Use `@WithMockEditUser` / `@WithMockAdminUser` or `@WithMockUser(authorities = ...)`.

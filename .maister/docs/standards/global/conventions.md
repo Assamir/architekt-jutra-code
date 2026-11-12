@@ -36,14 +36,15 @@ Avoid speculative code and "just in case" additions (see minimal-implementation.
 Source: CLAUDE.md
 
 ### Service Env Files Come from .env.example
-Each component that needs secrets ships a committed `.env.example` with placeholder/local-dev values and comments; developers copy it to `.env`, which is gitignored (`litellm/.env`, `plugins/ai-description/.env`). LLM provider keys live only in `litellm/.env` (the LiteLLM gateway); plugins hold only the LiteLLM proxy key (`LITELLM_API_KEY`), never provider keys. Docker Compose loads secrets with `env_file`. New services that need secrets follow the same pattern. Note: `plugins/ai-description/.env.example` still mentions `.env.local`; `.env` is the name used by `.gitignore`, README and CLAUDE.md.
+Each component that needs secrets ships a committed `.env.example` with placeholder/local-dev values and comments; developers copy it to `.env`, which is gitignored (`litellm/.env`, `plugins/ai-description/.env`, `plugins/ai-offer-analysis/.env`). LLM provider keys live only in `litellm/.env` (the LiteLLM gateway); plugins hold only the LiteLLM proxy key (`LITELLM_API_KEY`), never provider keys. Plugins call logical model names (e.g. `gpt-4o-mini`); `litellm/config.yaml` maps them to the upstream provider: `gpt-4o-mini` (shared by ai-description and ai-offer-analysis) goes via OpenRouter (`openrouter/openai/gpt-4o-mini`) and reads `OPENAI_API_KEY`, which holds the OpenRouter key; switching to OpenAI directly means an OpenAI key in that variable and model `openai/gpt-4o-mini`. Docker Compose loads secrets with `env_file`. New services that need secrets follow the same pattern. Note: `plugins/ai-description/.env.example` still mentions `.env.local`; `.env` is the name used by `.gitignore`, README and CLAUDE.md.
 
 ```bash
 cp litellm/.env.example litellm/.env
 cp plugins/ai-description/.env.example plugins/ai-description/.env
+cp plugins/ai-offer-analysis/.env.example plugins/ai-offer-analysis/.env
 ```
 
-Source: README.md, CLAUDE.md, litellm/.env.example, plugins/ai-description/.env.example, .gitignore, compose.yml
+Source: README.md, CLAUDE.md, litellm/.env.example, litellm/config.yaml, plugins/ai-description/.env.example, plugins/ai-offer-analysis/.env.example, .gitignore, compose.yml
 
 ### Application Property Namespacing and Env-Var Overrides
 Custom configuration uses an application-specific prefix with kebab-case keys: host `app.<module>.<setting>` (`app.jwt.*`, `app.cors.*`, `app.footprint.audit.retry.*`), MCP server `aj.<area>.<setting>` (`aj.backend.url`, `aj.oauth.*`). Per-environment values are overridable as `${UPPER_SNAKE_ENV:local-default}` with the env name derived from prefix and key (`APP_JWT_SECRET`, `AJ_BACKEND_URL`), so the app runs locally with zero setup. Durations and sizes carry their unit in the key (`expiration-ms`, `delay-ms`). Keep each module's format (host `application.properties`, mcp-server `application.yml`) and comment non-obvious settings.

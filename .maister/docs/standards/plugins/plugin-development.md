@@ -53,10 +53,10 @@ Source: plugins/CLAUDE.md, CLAUDE.md, plugins/warehouse/src/pages/WarehousePage.
 
 ### Fixed Dev Ports
 
-Every service has a fixed, unique local port: host 8080, MCP server 8081 (management 9081), warehouse 3001, box-size 3002, ai-description 3003, shipping 3010. Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011). A new plugin takes the next free port in its range and must always run there, because the manifest `url` is `http://localhost:<port>`. Vite plugins set `server.port` with `strictPort: true` so a clash fails instead of silently moving; Next.js plugins pass `-p <port>` to both `dev` and `start`. Avoid ports used by Compose services (3100 Langfuse, 4000 LiteLLM).
+Every service has a fixed, unique local port: host 8080, MCP server 8081 (management 9081), warehouse 3001, box-size 3002, ai-description 3003, shipping 3010, ai-offer-analysis 3011. Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, ai-offer-analysis 3011, next business module 3012). A new plugin takes the next free port in its range and must always run there, because the manifest `url` is `http://localhost:<port>`. Vite plugins set `server.port` with `strictPort: true` so a clash fails instead of silently moving; Next.js plugins pass `-p <port>` to both `dev` and `start`. Avoid ports used by Compose services (3100 Langfuse, 4000 LiteLLM).
 
 ```typescript
-server: { port: 3011, strictPort: true } // new business-module plugin vite.config.ts
+server: { port: 3012, strictPort: true } // new business-module plugin vite.config.ts
 ```
 
 Source: plugins/*/vite.config.ts, plugins/ai-description/package.json, plugins/*/manifest.json, CLAUDE.md, compose.yml

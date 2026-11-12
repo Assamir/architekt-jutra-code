@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E2E Verification Report — ai-offer-analysis-plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+.verdict { border-left:5px solid var(--warn); background:var(--warn-soft); }
+.verdict b { color:var(--warn); font-size:16px; }
+.tldr { border-left:4px solid var(--accent); }
+.scn h3 { margin:0 0 6px; font-size:15px; }
+.shots { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:10px; margin-top:10px; }
+.shots figure { margin:0; } .shots figcaption { font-size:11.5px; color:var(--dim); }
+.st-ok { color:var(--ok); font-weight:600; } .st-warn { color:var(--warn); font-weight:600; }
+dl.f { display:grid; grid-template-columns:170px 1fr; gap:4px 12px; margin:8px 0 0; }
+dl.f dt { color:var(--dim); font-size:12.5px; } dl.f dd { margin:0; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">← Dashboard</a>
+  <a href="../implementation/spec.html">Spec</a>
+  <a href="../implementation/implementation-plan.html">Plan</a>
+  <a href="implementation-verification.html">Verification</a>
+  <span class="here">E2E</span>
+  <a href="visual-fidelity.html">Visual fidelity</a>
+  <a href="e2e-verification-report.md" target="_blank" rel="noopener" class="md">md twin ↗</a>
+</nav>
+
+<header>
+  <span class="badge">E2E verification</span>
+  <h1>E2E Verification Report: AI Offer Analysis plugin</h1>
+  <div style="color:var(--dim);font-size:12.5px">2026-11-12 · git 7fc5eac (master, plugin uncommitted) · host :8080, plugin :3011 · Playwright Chromium</div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b style="color:var(--warn)">GO*</b><span>with caveats</span></div>
+  <div class="tile"><b>10/10</b><span>scenarios passed</span></div>
+  <div class="tile"><b>0</b><span>critical</span></div>
+  <div class="tile"><b>0</b><span>major</span></div>
+  <div class="tile"><b>1</b><span>minor</span></div>
+  <div class="tile"><b>2</b><span>cosmetic</span></div>
+  <div class="tile"><b>2</b><span>LLM calls used</span></div>
+</div>
+
+<section class="card verdict">
+  <b>⚠️ GO WITH CAVEATS</b>: 10 of 10 scenarios passed in the live browser; one passed with an issue. The visibility-gated single auto-run, viewer restrictions, BroadcastChannel badge refresh, list filter and error rendering all behave as specified. Caveat: the running plugin still prints BAML prompts and LLM replies to stdout (<code>BAML_LOG=warn</code> is not in effect).
+</section>
+
+<section class="card tldr">
+  <h2 style="margin-top:0">TL;DR</h2>
+  <ul>
+    <li><b>Verdict:</b> GO WITH CAVEATS. 0 Critical, 0 Major, 1 Minor and 2 Cosmetic findings.</li>
+    <li>Auto-run happens only when the tab is visible, runs once per session, and is not repeated after an error.</li>
+    <li>The badge refreshes without a reload. The filter lists only the flagged products. Viewers cannot trigger a run.</li>
+    <li>2 real LLM calls (product 2 auto-run, product 15 Re-analyze) gave exactly 2 <code>llm-call … outcome=ok</code> lines.</li>
+    <li>Caveat: <code>[BAML INFO]</code> prompt and reply blocks appear in the plugin log (spec deviation (e) is not effective).</li>
+  </ul>
+  <h2>Key Decisions</h2>
+  <ul>
+    <li><b>Error path.</b> Tested with Playwright stubs of <code>POST :3011/api/analyze</code> (502 contract bodies). It costs no LLM call and does not break the stack. It checks UI rendering, not server-side classification.</li>
+    <li><b>Running state.</b> Evidence for the auto-run running state comes from the stubbed run (3 s delay). The live running state was captured on the manual Re-analyze.</li>
+    <li><b>Stored analyses.</b> Products 1 and 16 were opened behind a stub guard: 0 hits, so both analyses were current.</li>
+    <li><b>LLM budget.</b> 2 of the 3 allowed calls used.</li>
+  </ul>
+  <h2>Open Questions / Risks</h2>
+  <ul>
+    <li><span class="sev warning">minor</span>The plugin log echoes the full prompt (product text) and the LLM reply. Either the local <code>.env</code> lacks <code>BAML_LOG=warn</code> or it is not applied (<code>.env</code> was not inspected, per the rules).</li>
+    <li>The viewer stale note was not exercised: it needs a product edit, which would cost an editor auto-run.</li>
+  </ul>
+</section>
+
+<div style="font-size:13px">Contents: <a href="#env">Environment</a> · <a href="#scenarios">Scenarios</a> · <a href="#disc">Discrepancies</a> · <a href="#console">Console</a> · <a href="#align">Spec alignment</a> · <a href="#var">Variances</a> · <a href="#exit">Exit criteria</a> · <a href="#rec">Recommendations</a></div>
+
+<main>
+<h2 id="env">Test Environment</h2>
+<div class="card"><table>
+<tr><th>Base URL</th><td>http://localhost:8080 (host); plugin iframes at http://localhost:3011 (Next.js 15.5 dev)</td></tr>
+<tr><th>Browser</th><td>Playwright MCP, Chromium</td></tr>
+<tr><th>Viewport</th><td>2260×1120 CSS px (DPR 1.12); tab iframe 600 px, badge iframe 60 px</td></tr>
+<tr><th>Auth</th><td><code>viewer</code> (READ) for 4.6–4.7; <code>editor</code> (READ+EDIT) for all others; dev fixture logins</td></tr>
+<tr><th>Data</th><td>Live dev seed: products 1, 15 and 16 analyzed; 2 and 3 not analyzed at the start</td></tr>
+</table></div>
+
+<h2 id="scenarios">Verification Scenarios</h2>
+
+<div class="card scn">
+  <h3>4.1 Editor stays on Details: no auto-run <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Open /products/2, wait 5 s on Details</td><td>No POST /api/analyze</td><td>Log shows only GET page loads; 0 <code>llm-call</code> lines</td><td>✅</td></tr>
+  <tr><td>2</td><td>Badge iframe</td><td>Plain "AI review: not analyzed yet"</td><td><code>tc-badge</code>, exact text</td><td>✅</td></tr>
+  <tr><td>3</td><td>Hidden tab iframe</td><td>0×0 viewport, no run</td><td>innerWidth/innerHeight 0; "Not analyzed"</td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-01-editor-details-not-analyzed.png" alt="Details with not analyzed badge"><figcaption>e2e-01: Details tab, badge "not analyzed yet"</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.2 Editor opens the AI tab: auto-run, then result <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Click "AI Offer Analysis"</td><td>One auto-run once visible</td><td>One POST 200 (6.2 s); <code>llm-call productId=2 outcome=ok</code></td><td>✅</td></tr>
+  <tr><td>2</td><td>Header</td><td>Subtitle "Analyzed … · gpt-4o-mini via LiteLLM"</td><td>"Analyzed 12 Nov 2026, 21:02 · gpt-4o-mini via LiteLLM", "Looks good", Re-analyze</td><td>✅</td></tr>
+  <tr><td>3</td><td>Sections</td><td>Per-section layout rule</td><td>ACCEPTABLE detailed; FITS compact; FAIR −13% compact line</td><td>✅</td></tr>
+  <tr><td>4</td><td>"Priced as"</td><td>Line shown</td><td>"Priced as: 55-inch OLED 4K Smart TV"</td><td>✅</td></tr>
+  <tr><td>5</td><td>Peers</td><td>Self excluded</td><td>Televisions, 2: LG C4, Sony</td><td>✅</td></tr></table>
+  <p style="font-size:12.5px;color:var(--dim)">The live running state was not captured: the run completed before the probe. See 4.4 and 4.8.</p>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-03-editor-auto-run-result.png" alt="Auto-run result"><figcaption>e2e-03: auto-run result</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.3 Badge refresh over BroadcastChannel, and no repeat run <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Back to Details (no reload)</td><td>Badge updated</td><td>Success "AI review: Looks good"; no frame navigation</td><td>✅</td></tr>
+  <tr><td>2</td><td>AI tab again</td><td>No run</td><td>No new log line</td><td>✅</td></tr>
+  <tr><td>3</td><td>Reload, then open the tab</td><td>No run</td><td>Saved result; still 1 <code>llm-call</code></td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-04-editor-details-badge-updated.png" alt="Badge updated"><figcaption>e2e-04: badge updated without reload</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-05-editor-reopen-current-no-run.png" alt="Reopen no run"><figcaption>e2e-05: reopened, no re-run</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.4 Editor on Vistara (15): stored result, then Re-analyze <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Open the tab</td><td>Stored result</td><td>Needs review; POOR 3/10 with Issues/Suggestions; MISMATCH Smart Home → Televisions</td><td>✅</td></tr>
+  <tr><td>2</td><td>Price section</td><td>Per stored record</td><td>FAIR +12%, HIGH; "USD 2,799.00 vs market USD 1,500.00–3,500.00 · peers 179.99 / 179.99 / 279.99"; Priced as 65-inch OLED 4K TV</td><td>✅</td></tr>
+  <tr><td>3</td><td>Click Re-analyze</td><td>Running; button disabled</td><td>"Analyzing…", labelled indeterminate progress, <code>Re-analyze [disabled]</code>, no reason line</td><td>✅</td></tr>
+  <tr><td>4</td><td>Completion</td><td>Refreshed</td><td>Subtitle 20:39 → 21:03; <code>llm-call productId=15 outcome=ok</code></td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-10-editor-vistara-stored.png" alt="Vistara stored"><figcaption>e2e-10: stored result</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-11-editor-vistara-reanalyze-running.png" alt="Re-analyze running"><figcaption>e2e-11: running, Re-analyze disabled</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-12-editor-vistara-reanalyzed.png" alt="Re-analyzed"><figcaption>e2e-12: refreshed result</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.5 Product list "AI: needs review" filter <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Open /products</td><td>Host-rendered switch</td><td>Present; 16 products listed</td><td>✅</td></tr>
+  <tr><td>2</td><td>Click the switch control</td><td>Flagged products only</td><td><code>pluginFilter=ai-offer-analysis:needsReview:bool:true</code> → 2 products: Vistara, Skylink</td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-20-list-filter-needs-review.png" alt="List filter"><figcaption>e2e-20: filter on, 2 products</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.6 Viewer on Vistara (15): saved result, no buttons, no call <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Details badge</td><td>Danger plus reasons</td><td>"AI review: Needs review" · "category mismatch · poor description"</td><td>✅</td></tr>
+  <tr><td>2</td><td>AI tab</td><td>Saved result, no Re-analyze</td><td>Full result; no buttons; aria-live polite</td><td>✅</td></tr>
+  <tr><td>3</td><td>Plugin log</td><td>No POST</td><td>GET page loads only</td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-40-viewer-vistara-details-badge.png" alt="Viewer badge"><figcaption>e2e-40: viewer badge</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-41-viewer-vistara-tab.png" alt="Viewer tab"><figcaption>e2e-41: viewer saved result</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.7 Viewer on a never-analyzed product (3) <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Details badge</td><td>"not analyzed yet"</td><td>As expected</td><td>✅</td></tr>
+  <tr><td>2</td><td>AI tab</td><td>"Not analyzed yet" card</td><td>Exact copy, one tc-card, no buttons, no POST</td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-42-viewer-not-analyzed-tab.png" alt="Viewer not analyzed"><figcaption>e2e-42: viewer, not analyzed yet</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.8 Error path with a stubbed network: no repeat, Retry and CONTENT_BLOCKED hint <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Load the page, stay on Details</td><td>No request</td><td>0 hits</td><td>✅</td></tr>
+  <tr><td>2</td><td>Click the AI tab</td><td>Running with the reason line</td><td>"Started automatically: this product has not been analyzed yet."; Re-analyze disabled</td><td>✅</td></tr>
+  <tr><td>3</td><td>502 LLM_UNAVAILABLE</td><td>Sanitized error plus Retry; "Not analyzed", no subtitle</td><td>As expected; Re-analyze hidden</td><td>✅</td></tr>
+  <tr><td>4</td><td>Details, then AI tab again</td><td>No second auto-run</td><td>Hits stay at 1</td><td>✅</td></tr>
+  <tr><td>5</td><td>Retry (CONTENT_BLOCKED)</td><td>Blocked message plus hint</td><td>Message, hint and Retry rendered</td><td>✅</td></tr>
+  <tr><td>6</td><td>Reload, check the badge</td><td>Nothing saved</td><td>Still "not analyzed yet"</td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-30-editor-auto-running-mocked.png" alt="Auto running"><figcaption>e2e-30: auto-run running (stubbed)</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-31-editor-auto-run-error-mocked.png" alt="Error"><figcaption>e2e-31: LLM_UNAVAILABLE error</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-32-editor-retry-content-blocked-mocked.png" alt="Content blocked"><figcaption>e2e-32: CONTENT_BLOCKED plus hint</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.9 Stored states for LG C4 (1) and Skylink (16) <span class="st-ok">✅ Passed</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>LG C4 badge and tab</td><td>Looks good, compact, peers Televisions 2</td><td>GOOD 8/10, FITS, FAIR +3%, peers 1,299.99 / 1,749.99 / 2,199.99</td><td>✅</td></tr>
+  <tr><td>2</td><td>Skylink badge</td><td>Reasons in the fixed order</td><td>"price −90% below market · category mismatch"</td><td>✅</td></tr>
+  <tr><td>3</td><td>Skylink price</td><td>Detailed table</td><td>19.99; 100.00 – 300.00; Catalog peers (Home Appliances, 3) 649.99 / 799.99 / 1,099.95</td><td>✅</td></tr>
+  <tr><td>4</td><td>Skylink category</td><td>MISMATCH → Networking</td><td>As expected</td><td>✅</td></tr></table>
+  <div class="shots"><figure><img class="shot" src="screenshots/e2e-52-editor-tab-p1.png" alt="LG C4"><figcaption>e2e-52: LG C4 looks good</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-51-editor-details-badge-p16.png" alt="Skylink badge"><figcaption>e2e-51: Skylink badge</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-54-editor-tab-p16-price-detailed.png" alt="Skylink price"><figcaption>e2e-54: detailed price table</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-50-editor-details-badge-p1.png" alt="LG badge"><figcaption>e2e-50: LG C4 badge</figcaption></figure>
+  <figure><img class="shot" src="screenshots/e2e-53-editor-tab-p16.png" alt="Skylink tab"><figcaption>e2e-53: Skylink tab top</figcaption></figure></div>
+</div>
+
+<div class="card scn">
+  <h3>4.10 LLM-call ground truth in the plugin log <span class="st-warn">⚠️ Passed with issues</span></h3>
+  <table><tr><th>#</th><th>Action</th><th>Expected</th><th>Actual</th><th>Status</th></tr>
+  <tr><td>1</td><td>Count <code>llm-call</code> lines</td><td>2 (runs triggered)</td><td>2: productId=2 ok 6100 ms; productId=15 ok 6699 ms</td><td>✅</td></tr>
+  <tr><td>2</td><td>Prompt or reply in the log</td><td>None (BAML_LOG=warn)</td><td><code>[BAML INFO] Function AnalyzeOffer</code> blocks with ---PROMPT--- and ---LLM REPLY---</td><td>❌</td></tr></table>
+</div>
+
+<h2 id="disc">Discrepancies</h2>
+<div class="card">
+  <p><b>Critical:</b> <i>None observed.</i> · <b>Major:</b> <i>None observed.</i></p>
+  <h3><span class="sev warning">minor</span>#1: BAML echoes the full prompt and LLM reply to the plugin stdout</h3>
+  <dl class="f">
+    <dt>Spec requirement</dt><dd>Deviation (e): <code>BAML_LOG=warn</code> so BAML does not echo prompts and responses; (d): the prompt and raw LLM output are never logged</dd>
+    <dt>Expected</dt><dd>Only Next.js request lines and <code>llm-call</code> lines</dd>
+    <dt>Actual</dt><dd>A block of about 170 lines per call, with the full prompt (product text, peers) and the raw and parsed reply</dd>
+    <dt>Evidence</dt><dd>plugin3.log lines 27–193 and 200–375; <code>.env.example:12</code> has BAML_LOG=warn</dd>
+    <dt>Root cause hypothesis</dt><dd>The local plugin <code>.env</code> most likely predates fix cycle 1 and lacks BAML_LOG=warn (not inspected). Less likely: the variable is not applied to the BAML runtime</dd>
+    <dt>User impact</dt><dd>None for end users. The local log holds unmasked product text, and noise buries the llm-call lines</dd>
+    <dt>Recommended fix</dt><dd>Add or confirm BAML_LOG=warn in the plugin .env and restart. If it still appears, set it in the dev/start scripts</dd>
+    <dt>Workaround</dt><dd>Export BAML_LOG=warn in the shell before <code>npm run dev</code></dd>
+  </dl>
+  <h3><span class="sev info">cosmetic</span>#1: Next.js dev indicator overlaps plugin content</h3>
+  <dl class="f">
+    <dt>Spec requirement</dt><dd>The badge fits in 60 px, and its verdict text is always shown</dd>
+    <dt>Expected</dt><dd>Badge text fully visible</dd>
+    <dt>Actual</dt><dd>The "N" dev-tools button covers the start of "AI review" and the tab's lower-left corner</dd>
+    <dt>Evidence</dt><dd><code>screenshots/e2e-51-editor-details-badge-p16.png</code>, <code>screenshots/e2e-41-viewer-vistara-tab.png</code></dd>
+    <dt>Root cause hypothesis</dt><dd>The <code>next dev</code> indicator; absent in production builds</dd>
+    <dt>User impact</dt><dd>Dev only; affects demo screenshots</dd>
+    <dt>Recommended fix</dt><dd>Optional <code>devIndicators: false</code></dd>
+    <dt>Workaround</dt><dd><code>npm run build &amp;&amp; npm start</code> for demos</dd>
+  </dl>
+  <h3><span class="sev info">cosmetic</span>#2: The host "AI: needs review" switch has no accessible name</h3>
+  <dl class="f">
+    <dt>Spec requirement</dt><dd>The host renders <code>product.list.filters</code> (out of scope); the accessibility standard asks for labels</dd>
+    <dt>Expected</dt><dd>Checkbox labelled "AI: needs review"</dd>
+    <dt>Actual</dt><dd>An unnamed checkbox plus a separate paragraph</dd>
+    <dt>Evidence</dt><dd><code>screenshots/e2e-20-list-filter-needs-review.png</code></dd>
+    <dt>Root cause hypothesis</dt><dd>The host's boolean filter component does not associate its label (shared by all plugins)</dd>
+    <dt>User impact</dt><dd>Screen readers announce an unlabelled switch</dd>
+    <dt>Recommended fix</dt><dd>A separate host task: aria-label from the manifest label</dd>
+    <dt>Workaround</dt><dd>None needed for sighted users</dd>
+  </dl>
+</div>
+
+<h2 id="console">Console &amp; Network Errors</h2>
+<div class="card"><table><tr><th>Source</th><th>Message</th><th>Frequency</th><th>Severity</th><th>Impact</th></tr>
+<tr><td>localhost:3011/api/analyze</td><td>Failed to load resource: 502</td><td>2 (4.8 only)</td><td>Cosmetic</td><td>Expected: stubbed responses</td></tr>
+<tr><td>host index-DZu6PCv-.js:9 (warning)</td><td>iframe allow-scripts + allow-same-origin can escape sandboxing</td><td>Every page load</td><td>Cosmetic</td><td>Pre-existing host sandbox setting; out of scope</td></tr></table>
+<p style="font-size:12.5px;color:var(--dim)">No uncaught page errors; 0 non-2xx live <code>/api/analyze</code> responses.</p></div>
+
+<h2 id="align">Spec Alignment</h2>
+<div class="card">
+<p><b class="pass">Fully implemented</b></p>
+<ul>
+  <li>Visibility gate, one attempt per session, no repeat after an error or tab switch</li>
+  <li>Fingerprint staleness</li>
+  <li>Header, running state and per-section layouts; badge mapping and labels</li>
+  <li>"Priced as"; compact FAIR line</li>
+  <li>Assigned-category peers with self excluded</li>
+  <li>3-state badge plus BroadcastChannel</li>
+  <li>Boolean list filter</li>
+  <li>Viewer states with no calls</li>
+  <li>Error states and the CONTENT_BLOCKED hint; Retry only</li>
+  <li>One <code>llm-call</code> line per BAML call</li>
+</ul>
+<p><b style="color:var(--warn)">Partially implemented</b>: deviation (e) <code>BAML_LOG=warn</code> is documented but not effective in the running plugin.</p>
+<p><b>Not implemented</b>: <i>None observed.</i></p>
+<p><b>Extra</b>: while a not-yet-analyzed tab is hidden, its header shows an enabled Re-analyze. It is never visible, because the auto-run replaces it.</p>
+</div>
+
+<h2 id="var">Variances from Plan</h2>
+<div class="card"><ul>
+<li><b>Error path.</b> Stubbed at the network level, not by stopping LiteLLM (per the brief). The server-side classification is not exercised.</li>
+<li><b>Live running state.</b> Not captured: the first tab clicks after login did not register (a harness quirk). The running state was verified on the manual Re-analyze (live) and on the stubbed auto-run.</li>
+<li><b>Viewer stale note.</b> Not exercised.</li>
+<li><b>Products used.</b> Scenario 1 used product 2. The viewer no-analysis check and the stubbed error path used product 3 (nothing saved).</li>
+<li><b>Out of scope.</b> LiteLLM <code>/spend/logs</code> delta, Langfuse, Jest/Maven, and the edit-triggers-re-run criterion.</li>
+<li><b>LLM budget.</b> 2 of 3 calls used.</li>
+</ul></div>
+
+<h2 id="exit">Exit Criteria</h2>
+<div class="card"><table><tr><th>Criterion (spec Success Criteria)</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>Tab, info badge and list switch appear</td><td>✅</td><td>4.1, 4.5</td></tr>
+<tr><td>Product page without opening the tab makes no /api/analyze call</td><td>✅</td><td>4.1</td></tr>
+<tr><td>Exactly one auto-run on first open for a new or changed product</td><td>✅</td><td>4.2</td></tr>
+<tr><td>Re-opening without content changes makes no LLM call</td><td>✅</td><td>4.3</td></tr>
+<tr><td>Failed auto-run not repeated; Retry runs again</td><td>✅</td><td>4.8</td></tr>
+<tr><td>Viewer never triggers /api/analyze; saved result or "Not analyzed yet"</td><td>✅</td><td>4.6, 4.7</td></tr>
+<tr><td>Demo products "Needs review" with strongly cued flags in the tab and badge</td><td>✅</td><td>4.4, 4.9</td></tr>
+<tr><td>Peer rows show the assigned category, self excluded</td><td>✅</td><td>4.2, 4.9</td></tr>
+<tr><td>Badge refreshes without reload; filter returns flagged products</td><td>✅</td><td>4.3, 4.5</td></tr>
+<tr><td>Only sanitized error messages reach the browser</td><td>✅</td><td>4.8</td></tr></table></div>
+
+<h2 id="rec">Recommendations</h2>
+<div class="card"><ul>
+<li><b>Must fix before merge:</b> <i>None.</i></li>
+<li><b>Should fix soon:</b> Minor #1: make <code>BAML_LOG=warn</code> effective, then re-check the log.</li>
+<li><b>Nice-to-have:</b> Cosmetic #1 (dev indicator); Cosmetic #2 (host filter switch label, a separate host task).</li>
+</ul></div>
+
+<h2>Artifacts &amp; Conclusion</h2>
+<div class="card">
+<p>Screenshots: <code>verification/screenshots/</code> (19 <code>e2e-*</code> plus 7 <code>e2e-mockup-*</code>). Visual fidelity: <a href="visual-fidelity.html">visual-fidelity.html</a> (<a href="visual-fidelity.md" target="_blank" rel="noopener">md</a>).</p>
+<p><b>⚠️ GO WITH CAVEATS.</b> All 10 runtime scenarios behave as specified. The one real deviation is BAML prompt logging in the dev plugin, most likely a <code>.env</code> gap. <b>Next step:</b> merge after confirming that <code>BAML_LOG=warn</code> is in the plugin <code>.env</code> and the <code>[BAML INFO]</code> blocks disappear.</p>
+</div>
+</main>
+</body>
+</html>
