@@ -16,13 +16,14 @@ The core application acts as a lightweight host that manages plugin lifecycle, s
 ├── plugins/                    # Independent plugin modules
 │   ├── warehouse/              # Warehouse management plugin (Vite + TS)
 │   ├── box-size/               # Box size calculator plugin (Vite + TS)
-│   └── shipping/               # Shipping carriers and per-product restrictions (Vite + TS, :3010)
+│   ├── shipping/               # Shipping carriers and per-product restrictions (Vite + TS, :3010)
+│   └── ai-offer-analysis/      # AI review of description, category fit and price (Next.js + BAML via LiteLLM, :3011)
 ├── compose.yml                 # Docker Compose (PostgreSQL 18)
 ├── start-dev.sh                # Single script to run everything locally
 └── .maister/                   # AI-assisted development artifacts
 ```
 
-Plugin dev ports: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011).
+Plugin dev ports: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, ai-offer-analysis 3011, next business module 3012).
 
 ## Built with AI (Skillpanel / Maister Plugin)
 
@@ -62,9 +63,10 @@ Some services require environment variables. Copy the example files and fill in 
 ```bash
 cp litellm/.env.example litellm/.env
 cp plugins/ai-description/.env.example plugins/ai-description/.env
+cp plugins/ai-offer-analysis/.env.example plugins/ai-offer-analysis/.env
 ```
 
-Edit each `.env` file and replace placeholder values with your actual API keys. The service URLs (Langfuse, Presidio) are pre-configured for Docker and typically don't need changes.
+Edit each `.env` file and replace placeholder values with your actual API keys. Provider keys go only in `litellm/.env`; the plugins hold just the LiteLLM proxy key. `gpt-4o-mini` (used by ai-description and ai-offer-analysis) goes via OpenRouter (`openrouter/openai/gpt-4o-mini` in `litellm/config.yaml`) and reads its key from `OPENAI_API_KEY` (set it to your OpenRouter key); to call OpenAI directly, put an OpenAI key there and switch the model to `openai/gpt-4o-mini`. Plugins always call the logical model name `gpt-4o-mini`. The service URLs (Langfuse, Presidio) are pre-configured for Docker and typically don't need changes.
 
 ### Quick Start
 
@@ -73,6 +75,7 @@ Edit each `.env` file and replace placeholder values with your actual API keys. 
 (cd plugins/warehouse && npm install)
 (cd plugins/box-size && npm install)
 (cd plugins/shipping && npm install)
+(cd plugins/ai-offer-analysis && npm install)
 
 # Start everything (PostgreSQL + Spring Boot + all plugins)
 ./start-dev.sh

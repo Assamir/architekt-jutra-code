@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation Plan — AI Offer Analysis plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+/* navigation + tiles */
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+/* progress sync */
+.step.todo::before  { content:"☐ "; color:var(--dim); }
+.step.done::before  { content:"☑ "; color:var(--ok); }
+.step.done          { color:var(--dim); }
+.group.todo .g-badge::after { content:"pending"; }
+.group.done .g-badge::after { content:"✓ completed"; color:var(--ok); }
+/* plan-specific */
+header .meta { color:var(--dim); font-size:13px; }
+.tldr ul { margin:6px 0; padding-left:20px; }
+.group { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px 18px; margin:14px 0; border-left:4px solid var(--accent); }
+.group.deferrable { border-left-color:var(--warn); }
+.group h3 { margin:0 0 6px; font-size:15px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.g-badge { font-size:10.5px; font-weight:700; text-transform:uppercase; padding:1.5px 7px;
+  border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.deps { font-size:12.5px; color:var(--dim); margin:2px 0 8px; }
+.chips { display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 10px; }
+.steps { list-style:none; padding-left:4px; margin:6px 0; }
+.steps li { margin:3px 0; }
+.ac { font-size:13px; margin-top:8px; }
+.ac ul { margin:4px 0; padding-left:20px; }
+.flow { overflow-x:auto; }
+.vr td:first-child { white-space:nowrap; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">← Dashboard</a>
+  <a href="spec.html">Spec</a>
+  <span class="here">Plan</span>
+  <a href="../verification/implementation-verification.html">Verification</a>
+  <a href="visual-coverage.md" target="_blank" rel="noopener">Visual coverage ↗</a>
+  <a href="implementation-plan.md" target="_blank" rel="noopener" class="md">md twin ↗</a>
+</nav>
+
+<header>
+  <h1>Implementation Plan: AI Offer Analysis Plugin <span class="badge">implementation plan</span></h1>
+  <div class="meta"><code>plugins/ai-offer-analysis</code> · port 3011 · generated 2026-11-12 · source <a href="implementation-plan.md" target="_blank" rel="noopener">implementation-plan.md</a></div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b>9</b><span>task groups</span></div>
+  <div class="tile"><b>58</b><span>total steps</span></div>
+  <div class="tile"><b>18</b><span>Jest tests (10+8)</span></div>
+  <div class="tile"><b>1</b><span>BAML test block</span></div>
+  <div class="tile"><b>9/9</b><span>screens covered</span></div>
+</div>
+
+<section class="tldr card">
+  <h2 style="margin-top:0">TL;DR</h2>
+  <p>9 task groups, 58 steps, 18 Jest tests (10 domain + 8 route), 1 BAML test block, and a host <code>./mvnw test</code> regression run.
+  Order: scaffold (1) → BAML contract (2) and domain logic (3) in parallel → analyze route (4) and UI pages (5) → 013 seed (6, needs only 1) → docs (7) → test review (8) → live LiteLLM traffic run (9).
+  The UI group carries Visual References for all 7 screens and 2 components; <code>visual-coverage.md</code> shows 100% coverage.
+  Group 9 needs Docker, a real <code>OPENAI_API_KEY</code> and a browser. If the environment is missing during execution, it moves to the verification phase.</p>
+  <h2>Key Decisions</h2>
+  <ul>
+    <li><b><code>generators.baml</code> goes in Group 1.</b> <code>npm install</code> runs the <code>postinstall</code> <code>baml-cli generate</code>, which needs a <code>baml_src/</code> directory. The scaffold group creates <code>generators.baml</code>; Group 2 adds <code>clients.baml</code> and <code>main.baml</code>.</li>
+    <li><b>The domain does not depend on BAML.</b> Per the spec, <code>src/domain.ts</code> never imports <code>baml_client</code>, so Group 3 depends only on the scaffold and can run alongside Group 2.</li>
+    <li><b>The UI depends on the domain, not the route.</b> The tab is coded against the spec's <code>/api/analyze</code> contract, so Group 5 can run alongside Group 4. Group 8 runs the final <code>npm run build</code> over the whole project.</li>
+    <li><b>Test Review adds no tests beyond the spec caps.</b> The spec sets success at ≤18 Jest tests (domain ≤10, route ≤8). Group 8 checks coverage against the spec's numbered test list and fills a gap only inside those caps, not with the template's "up to 10 additional" tests.</li>
+    <li><b>The live run comes after Test Review.</b> Group 9 depends on the environment. Putting it last means a missing environment never blocks the code-producing groups or Test Review. It is the only group allowed to move to the verification phase.</li>
+    <li><b>Host regression skips the npm build.</b> It runs <code>./mvnw test -Dskip.npm -Dskip.installnodenpm -Dskip.jooq.generation=true</code>. The seed changes no schema and the jOOQ sources already exist in <code>target/generated-sources/jooq</code>. TestContainers still needs Docker. No Liquibase context filter is set, so the dev-context 013 changesets load in host tests too, which is what this run checks.</li>
+  </ul>
+  <h2>Open Questions / Risks</h2>
+  <ul>
+    <li><span class="sev warning">warning</span><b>LiteLLM attribution recording is unknown until Group 9.</b> BAML 0.220 puts <code>metadata.tags</code> and <code>user</code> into the request body, but it is not yet known whether LiteLLM OSS stores them as <code>request_tags</code>/<code>end_user</code>. If it does not, Group 9 applies the <code>x-litellm-tags</code> header fallback to <code>clients.baml</code> and reruns the steps.</li>
+    <li><span class="sev info">info</span><b>Shared files across groups.</b> <code>plugins/ai-offer-analysis/README.md</code> is touched by Groups 7 and 9; <code>baml_src/</code> by Groups 1, 2 and 9. Dependencies already put each pair in order, and both groups list the file.</li>
+    <li><span class="sev info">info</span><b>The seed JSONB can drift from <code>manifest.json</code>.</b> Nothing enforces equality. Group 6 copies the manifest content verbatim and checks it with a JSON comparison.</li>
+    <li><span class="sev warning">warning</span><b>UI pages have no Jest tests (out of scope per the spec).</b> The visibility gate, the single auto-run attempt and the mockup fidelity are checked only through the type-check, the Group 9 live run and the later E2E/visual verification.</li>
+    <li><span class="sev info">info</span><b>LLM nondeterminism.</b> A demo product's price verdict may vary between runs. Acceptance needs only the strongly cued flag for each demo product.</li>
+  </ul>
+</section>
+
+<p>Contents: <a href="#deps">Dependency graph</a> · <a href="#groups">Task groups</a> · <a href="#coverage">Visual coverage</a> · <a href="#standards">Standards</a> · <a href="#notes">Notes</a></p>
+
+<main>
+<h2 id="deps">Dependency graph &amp; execution order</h2>
+<div class="card flow">
+<svg viewBox="0 0 980 250" width="100%" role="img" aria-label="Task group dependency graph" style="min-width:760px;font:12px -apple-system,Segoe UI,sans-serif">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <g style="color:var(--dim)" stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#ar)">
+    <path d="M120,125 L190,45"/><path d="M120,125 L190,125"/><path d="M120,125 L190,205"/>
+    <path d="M320,45 L390,85"/><path d="M320,125 L390,90"/><path d="M320,125 L390,170"/>
+    <path d="M320,205 L590,135"/>
+    <path d="M520,85 L590,120"/>
+    <path d="M720,125 L760,125"/>
+    <path d="M520,170 L760,135"/>
+    <path d="M890,125 L905,125"/>
+  </g>
+  <g>
+    <rect x="10" y="105" width="110" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="65" y="122" text-anchor="middle" fill="var(--text)">1 Scaffold</text><text x="65" y="137" text-anchor="middle" fill="var(--dim)">7 steps</text>
+    <rect x="190" y="25" width="130" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="255" y="42" text-anchor="middle" fill="var(--text)">2 BAML contract</text><text x="255" y="57" text-anchor="middle" fill="var(--dim)">6 steps</text>
+    <rect x="190" y="105" width="130" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="255" y="122" text-anchor="middle" fill="var(--text)">3 Domain logic</text><text x="255" y="137" text-anchor="middle" fill="var(--dim)">8 steps · 10 tests</text>
+    <rect x="190" y="185" width="130" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="255" y="202" text-anchor="middle" fill="var(--text)">6 Liquibase seed</text><text x="255" y="217" text-anchor="middle" fill="var(--dim)">5 steps · mvnw test</text>
+    <rect x="390" y="65" width="130" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="455" y="82" text-anchor="middle" fill="var(--text)">4 Analyze route</text><text x="455" y="97" text-anchor="middle" fill="var(--dim)">7 steps · 8 tests</text>
+    <rect x="390" y="150" width="130" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="455" y="167" text-anchor="middle" fill="var(--text)">5 UI pages</text><text x="455" y="182" text-anchor="middle" fill="var(--dim)">8 steps · 9 visual refs</text>
+    <rect x="590" y="105" width="130" height="40" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="655" y="122" text-anchor="middle" fill="var(--text)">7 Documentation</text><text x="655" y="137" text-anchor="middle" fill="var(--dim)">6 steps · 8 files</text>
+    <rect x="760" y="105" width="130" height="40" rx="8" fill="var(--ok-soft)" stroke="var(--ok)"/><text x="825" y="122" text-anchor="middle" fill="var(--text)">8 Test review</text><text x="825" y="137" text-anchor="middle" fill="var(--dim)">5 steps · 18 total</text>
+    <rect x="905" y="105" width="70" height="40" rx="8" fill="var(--warn-soft)" stroke="var(--warn)"/><text x="940" y="122" text-anchor="middle" fill="var(--text)">9 Live</text><text x="940" y="137" text-anchor="middle" fill="var(--dim)">LiteLLM</text>
+  </g>
+</svg>
+<p style="font-size:12.5px;color:var(--dim);margin:6px 0 0">Group 8 depends on all of 1–7, and Group 9 on all of 1–8. The executor derives waves from <code>Dependencies</code> and <code>Files to Modify</code>.</p>
+</div>
+<table>
+  <tr><th>#</th><th>Group</th><th>Steps</th><th>Depends on</th></tr>
+  <tr><td>1</td><td>Plugin Scaffold &amp; Configuration</td><td>7</td><td>—</td></tr>
+  <tr><td>2</td><td>BAML Contract</td><td>6</td><td>1</td></tr>
+  <tr><td>3</td><td>Domain Logic</td><td>8</td><td>1</td></tr>
+  <tr><td>4</td><td>Analyze API Route</td><td>7</td><td>2, 3</td></tr>
+  <tr><td>5</td><td>Plugin UI Pages</td><td>8</td><td>3</td></tr>
+  <tr><td>6</td><td>Liquibase Dev Seed</td><td>5</td><td>1</td></tr>
+  <tr><td>7</td><td>Documentation</td><td>6</td><td>1, 4, 6</td></tr>
+  <tr><td>8</td><td>Test Review &amp; Gap Analysis</td><td>5</td><td>1–7</td></tr>
+  <tr><td>9</td><td>LiteLLM Traffic Attribution (live run)</td><td>6</td><td>1–8 (environment-dependent; may be deferred to verification)</td></tr>
+</table>
+
+<h2 id="groups">Task groups</h2>
+
+<section data-group="1" class="group done">
+  <h3>Group 1 · Plugin Scaffold &amp; Configuration <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: none · 7 steps · 3 smoke checks</div>
+  <div class="chips"><code>package.json</code><code>package-lock.json</code><code>next.config.js</code><code>tsconfig.json</code><code>jest.config.js</code><code>next-env.d.ts</code><code>.gitignore</code><code>.env.example</code><code>manifest.json</code><code>baml_src/generators.baml</code><code>src/pages/_document.tsx</code></div>
+  <ul class="steps">
+    <li data-step="1.0" class="step done">Complete the plugin scaffold and configuration layer</li>
+    <li data-step="1.1" class="step done">Define 3 smoke checks: <code>npm install</code> generates <code>baml_client/</code>; <code>jest.js --listTests</code> runs on Windows; <code>git check-ignore</code> covers the ignored paths</li>
+    <li data-step="1.2" class="step done"><code>package.json</code>: <code>ai-offer-analysis-plugin</code> 1.0.0, <code>-p 3011</code> scripts, <code>test</code> via <code>node node_modules/jest/bin/jest.js</code>, <code>@boundaryml/baml</code> exactly <code>0.220.0</code></li>
+    <li data-step="1.3" class="step done">Copy <code>next.config.js</code> (externalDir), <code>tsconfig.json</code> (without <code>@sdk</code>), <code>jest.config.js</code> and <code>next-env.d.ts</code> from ai-description</li>
+    <li data-step="1.4" class="step done"><code>.gitignore</code> (including <code>*.tsbuildinfo</code> and <code>.playwright-mcp/</code>) and <code>.env.example</code> (<code>LITELLM_API_KEY=sk-litellm-dev-key</code>, optional <code>HOST_BASE_URL</code>); copy it to a local <code>.env</code></li>
+    <li data-step="1.5" class="step done"><code>manifest.json</code> per the spec: tab <code>/product-tab</code> (priority 90), badge <code>/product-badge</code> (priority 30), boolean filter <code>needsReview</code> (priority 20)</li>
+    <li data-step="1.6" class="step done">Copy <code>_document.tsx</code> and <code>generators.baml</code>; run <code>npm install</code></li>
+    <li data-step="1.7" class="step done">Run the 3 smoke checks</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The smoke checks pass, BAML is pinned to <code>0.220.0</code>, and the manifest matches the spec and the package version.</li><li>No build artifacts or <code>.env</code> are committable.</li></ul></div>
+</section>
+
+<section data-group="2" class="group done">
+  <h3>Group 2 · BAML Contract (schema, client, test block) <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 1 · 6 steps · 1 BAML test block</div>
+  <div class="chips"><code>baml_src/clients.baml</code><code>baml_src/main.baml</code></div>
+  <ul class="steps">
+    <li data-step="2.0" class="step done">Complete the BAML contract layer</li>
+    <li data-step="2.1" class="step done">Write the <code>test VistaraDemoOffer</code> block mirroring the route payload: the TV in Smart Home, 5 categories, peers Smart Home 3 at USD 179.99 / 179.99 / 279.99</li>
+    <li data-step="2.2" class="step done"><code>OfferAnalysisLlm</code>: openai provider, <code>gpt-4o-mini</code>, <code>http://localhost:4000/v1</code>, temperature 0.1, <code>user</code> plus <code>metadata</code> attribution; no retry and no fallback</li>
+    <li data-step="2.3" class="step done">Enums plus output and input classes with <code>@description</code> on every field</li>
+    <li data-step="2.4" class="step done">The <code>AnalyzeOffer</code> function and a Jinja prompt in the spec's order, ending with <code>{{ ctx.output_format }}</code></li>
+    <li data-step="2.5" class="step done">Run <code>npm run generate</code> and <code>npx tsc --noEmit</code>; confirm <code>b.AnalyzeOffer</code> is typed</li>
+    <li data-step="2.6" class="step done">Verify the generate step; run <code>baml-cli test</code> optionally when LiteLLM is up, otherwise defer it to Group 9</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The client is generated and typed; there is no retry or fallback; attribution is present.</li><li>No <code>api.openai.com</code> and no provider keys in the plugin.</li></ul></div>
+</section>
+
+<section data-group="3" class="group done">
+  <h3>Group 3 · Domain Logic (<code>src/domain.ts</code>) <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 1 · 8 steps · 10 Jest tests</div>
+  <div class="chips"><code>src/domain.ts</code><code>src/__tests__/domain.test.ts</code></div>
+  <ul class="steps">
+    <li data-step="3.0" class="step done">Complete the domain logic layer</li>
+    <li data-step="3.1" class="step done">Write 10 tests: fingerprint (×2), needsReview truth table, peer stats and selectPromptPeers with numeric ids, deviation, suggestion resolution, canEdit, record and summary, badge class and label, summary mapper and review reasons</li>
+    <li data-step="3.2" class="step done">Constants (<code>PLUGIN_ID</code>, <code>OBJECT_TYPE</code>, <code>CHANNEL_NAME</code>, <code>ANALYSIS_MODEL</code>, threshold 30, timeout 45000, max peers 10) and types; no <code>baml_client</code> import</li>
+    <li data-step="3.3" class="step done"><code>toProductSnapshot</code>, <code>cyrb53</code>, and <code>computeFingerprint</code> (14 hex characters)</li>
+    <li data-step="3.4" class="step done"><code>formatUsd</code>/<code>formatAmount</code>, <code>computePeerStats</code>, <code>selectPromptPeers</code>, <code>computeDeviationPct</code>, <code>isPriceFlagged</code></li>
+    <li data-step="3.5" class="step done"><code>resolveSuggestedCategory</code>, <code>computeNeedsReview</code>, <code>buildAnalysisRecord</code>, <code>toSummary</code>, <code>toOfferAnalysis</code>, <code>toAnalysisSummary</code></li>
+    <li data-step="3.6" class="step done">UI helpers: <code>verdictBadgeClass</code>, <code>verdictLabel</code>, <code>priceBadgeLabel</code> (Unicode minus), <code>reviewReasons</code>, <code>isCompactSection</code></li>
+    <li data-step="3.7" class="step done">Port <code>canEdit</code> and <code>isRecord</code> verbatim from <code>plugins/shipping/src/domain.ts</code></li>
+    <li data-step="3.8" class="step done">Run only <code>domain.test.ts</code></li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The 10 tests pass and the module is pure.</li><li>The fingerprint is identical for normalized-equal snapshots.</li></ul></div>
+</section>
+
+<section data-group="4" class="group done">
+  <h3>Group 4 · Analyze API Route (<code>POST /api/analyze</code>) <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 2, 3 · 7 steps · 8 Jest tests</div>
+  <div class="chips"><code>src/pages/api/analyze.ts</code><code>src/__tests__/analyze.test.ts</code></div>
+  <ul class="steps">
+    <li data-step="4.0" class="step done">Complete the analyze API route layer</li>
+    <li data-step="4.1" class="step done">Write 8 tests: 405, 400, 403 with no calls made, 404 PRODUCT_NOT_FOUND, the happy path (save binding, setData, peers exclude self, USD format), CONTENT_BLOCKED, the timeout/unavailable <code>test.each</code>, and an invalid suggestion stored as null</li>
+    <li data-step="4.2" class="step done">Request gate: 405 with <code>Allow: POST</code> → 400 productId → 401 bearer → 403 <code>canEdit</code></li>
+    <li data-step="4.3" class="step done">Data stage with stage tracking: getProduct → snapshot; in parallel, categories and assigned-category products; peer stats, prompt peers and fingerprint</li>
+    <li data-step="4.4" class="step done">LLM stage: <code>b.AnalyzeOffer</code> with <code>AbortSignal.timeout(45000)</code>, then exactly one <code>[ai-offer-analysis] llm-call</code> <code>console.info</code> line</li>
+    <li data-step="4.5" class="step done">Store stage: <code>buildAnalysisRecord</code> → bound <code>objects.save</code> → <code>setData(toSummary)</code> → 200 with the record</li>
+    <li data-step="4.6" class="step done">Error classifier from <code>@boundaryml/baml/errors</code> in the spec's order; raw details only in <code>console.error</code></li>
+    <li data-step="4.7" class="step done">Run only <code>analyze.test.ts</code></li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The 8 tests pass without the native addon.</li><li>No raw error text reaches a response, and nothing is called without EDIT.</li><li>One log line per BAML call.</li></ul></div>
+</section>
+
+<section data-group="5" class="group done">
+  <h3>Group 5 · Plugin UI Pages (analysis tab + info badge) <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 3 · 8 steps · 3 UI checks · 9 visual references</div>
+  <div class="chips"><code>src/pages/product-tab.tsx</code><code>src/pages/product-badge.tsx</code></div>
+  <details>
+    <summary>Visual References (7 screens + 2 components, binding)</summary>
+    <table class="vr">
+      <tr><th>Element</th><th>Mockup / locator</th><th>Acceptance (summary)</th></tr>
+      <tr><td><code>screen:analysis-tab-needs-review-editor</code></td><td><a href="../analysis/design-context/mockups/analysis-tab-needs-review-editor.html">needs-review-editor</a> lines 399–420</td><td>Header with title, en-GB subtitle, danger "Needs review" and Re-analyze; detailed sections for flagged or uncertain verdicts; the price table uses peers from the assigned category; Score and Confidence plain badges</td></tr>
+      <tr><td><code>screen:analysis-tab-looks-good</code></td><td><a href="../analysis/design-context/mockups/analysis-tab-looks-good.html">looks-good</a> lines 399–410</td><td>Success "Looks good"; compact GOOD/FITS/FAIR lines; en-US numbers; LG C4 peers "Televisions, 2"</td></tr>
+      <tr><td><code>screen:analysis-tab-auto-running</code></td><td><a href="../analysis/design-context/mockups/analysis-tab-auto-running.html">auto-running</a> lines 399–408</td><td>Plain "Analyzing…"; labelled indeterminate <code>&lt;progress&gt;</code>; reason line only for an auto-run; Re-analyze <code>disabled</code></td></tr>
+      <tr><td><code>screen:analysis-tab-viewer-saved-result</code></td><td><a href="../analysis/design-context/mockups/analysis-tab-viewer-saved-result.html">viewer-saved-result</a> lines 399–420</td><td>No Re-analyze; stale note "Product changed since this analysis. Only editors can run a new analysis."</td></tr>
+      <tr><td><code>screen:analysis-tab-viewer-no-analysis</code></td><td><a href="../analysis/design-context/mockups/analysis-tab-viewer-no-analysis.html">viewer-no-analysis</a> lines 399–401</td><td>Title plus a centered "Not analyzed yet" card; no buttons</td></tr>
+      <tr><td><code>screen:analysis-tab-error</code></td><td><a href="../analysis/design-context/mockups/analysis-tab-error.html">error</a> lines 399–406</td><td><code>tc-error</code> API message; CONTENT_BLOCKED hint only for that code; Retry for editors; previous result below the card; "Not analyzed" header without a subtitle when there is no previous analysis</td></tr>
+      <tr><td><code>screen:info-badge-states</code></td><td><a href="../analysis/design-context/mockups/info-badge-states.html">info-badge-states</a> line 399</td><td>Three states (danger with reasons, success, plain); "unavailable" on error; fits 60px; no hex colors</td></tr>
+      <tr><td><code>component:verdict-badge</code></td><td>needs-review-editor lines 404, 409, 413</td><td>Class from <code>verdictBadgeClass</code>; verdict text always visible</td></tr>
+      <tr><td><code>component:analysis-section-card</code></td><td>needs-review-editor <code>.sec-desc</code> / <code>.sec-cat</code> / <code>.sec-price</code> (402–418)</td><td><code>tc-card tc-section</code>, an h4 and badges in a space-between <code>tc-flex</code>, <code>tc-table</code> facts; layout-only inline styles</td></tr>
+    </table>
+  </details>
+  <ul class="steps">
+    <li data-step="5.0" class="step done">Complete the plugin UI pages layer</li>
+    <li data-step="5.1" class="step done">Define 3 UI checks: <code>tsc --noEmit</code>, no-hex grep, and a self-check of the Visual References acceptance recorded in the work-log</li>
+    <li data-step="5.2" class="step done">Tab load: SSR-safe <code>getSDK()</code>, <code>String(productId)</code>, parallel token, analysis and product loads, fingerprint and stale detection</li>
+    <li data-step="5.3" class="step done">Auto-run visibility gate: visible when the viewport is non-zero, otherwise wait for a <code>resize</code>; the <code>autoRunAttempted</code> ref allows one attempt per session</li>
+    <li data-step="5.4" class="step done">Run function: in-flight ref guard, fresh token, POST, BroadcastChannel <code>analysis-saved</code> on 200, error and network handling</li>
+    <li data-step="5.5" class="step done">Header and states: overall badge, subtitle, Re-analyze <code>disabled</code> while running, viewer note, running, error and no-analysis cards, <code>aria-live</code></li>
+    <li data-step="5.6" class="step done">Section cards with per-section compact or detailed layout (<code>isCompactSection</code>) and the badge helpers</li>
+    <li data-step="5.7" class="step done"><code>product-badge.tsx</code>: <code>getData</code>, then <code>toAnalysisSummary</code>, giving 3 states plus "unavailable"; BroadcastChannel re-read on a matching <code>productId</code></li>
+    <li data-step="5.8" class="step done">Run the 3 UI checks</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>Type-check passes and there is no hex.</li><li>Every Visual References acceptance item is self-checked.</li><li>The hidden iframe never calls <code>/api/analyze</code>; at most one auto-run per session; viewers never call it.</li><li>The badge refreshes without a reload.</li></ul></div>
+</section>
+
+<section data-group="6" class="group done">
+  <h3>Group 6 · Liquibase Dev Seed (<code>013</code>) <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 1 · 5 steps · host <code>./mvnw test</code> regression</div>
+  <div class="chips"><code>src/main/resources/db/changelog/2026/013-insert-ai-offer-analysis-plugin.yaml</code></div>
+  <ul class="steps">
+    <li data-step="6.0" class="step done">Complete the dev seed (database) layer</li>
+    <li data-step="6.1" class="step done">Define 3 checks: manifest JSON deep-equal, <code>./mvnw test -Dskip.npm -Dskip.installnodenpm -Dskip.jooq.generation=true</code>, and a collision grep over <code>src/test</code></li>
+    <li data-step="6.2" class="step done">ChangeSet <code>013-insert-ai-offer-analysis-plugin</code> (dev): plugin row with manifest <code>::jsonb</code>, <code>ON CONFLICT (id) DO NOTHING</code>, rollback</li>
+    <li data-step="6.3" class="step done">ChangeSet <code>013-insert-ai-offer-analysis-demo-products</code> (dev): <code>INSERT … SELECT … FROM (VALUES …) INNER JOIN categories … ON CONFLICT (sku) DO NOTHING</code>, with <code>AOA-DEMO-TV65</code> and <code>AOA-DEMO-MESH2</code>, and a rollback</li>
+    <li data-step="6.4" class="step done">Confirm <code>includeAll</code> picks up the file and the naming convention is followed</li>
+    <li data-step="6.5" class="step done">Run the 3 checks; the host suite run is the only full-suite run</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The manifest matches and <code>./mvnw test</code> is green.</li><li>The seed is idempotent, and a missing category skips its demo row.</li><li>Both changeSets have rollback blocks and the dev context.</li></ul></div>
+</section>
+
+<section data-group="7" class="group done">
+  <h3>Group 7 · Documentation <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 1, 4, 6 · 6 steps · 3 doc checks</div>
+  <div class="chips"><code>plugins/ai-offer-analysis/README.md</code><code>README.md</code><code>CLAUDE.md</code><code>plugins/CLAUDE.md</code><code>.maister/docs/project/tech-stack.md</code><code>.maister/docs/standards/plugins/plugin-development.md</code><code>.maister/docs/standards/global/conventions.md</code><code>.maister/docs/INDEX.md</code></div>
+  <ul class="steps">
+    <li data-step="7.0" class="step done">Complete the documentation layer</li>
+    <li data-step="7.1" class="step done">Define 3 checks: a grep for <code>ai-offer-analysis</code> in all 8 files, a grep for <code>3011</code>, and "next business module" now at 3012</li>
+    <li data-step="7.2" class="step done">Plugin README: data flow, setup, seed and curl registration, re-register rule, run rules, tests, the full LiteLLM procedure (bash and PowerShell), known limitations</li>
+    <li data-step="7.3" class="step done">Root README: tree, port line, <code>.env</code> copy, Quick Start <code>npm install</code></li>
+    <li data-step="7.4" class="step done"><code>CLAUDE.md</code> plugin list and AI tooling sentence; <code>plugins/CLAUDE.md</code> reference entry and port rule</li>
+    <li data-step="7.5" class="step done"><code>tech-stack.md</code>, <code>plugin-development.md</code>, <code>conventions.md</code>, <code>INDEX.md</code></li>
+    <li data-step="7.6" class="step done">Run the 3 documentation checks</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The checks pass and the README procedure matches the spec.</li><li>Course folders are untouched.</li></ul></div>
+</section>
+
+<section data-group="8" class="group done">
+  <h3>Group 8 · Test Review &amp; Gap Analysis <span class="g-badge"></span></h3>
+  <div class="deps">Dependencies: 1–7 · 5 steps · 0 tests beyond the spec caps (≤18)</div>
+  <div class="chips"><code>src/__tests__/domain.test.ts</code><code>src/__tests__/analyze.test.ts</code></div>
+  <ul class="steps">
+    <li data-step="8.0" class="step done">Review and fill critical gaps</li>
+    <li data-step="8.1" class="step done">Review the 18 tests against the spec's numbered lists (domain 1–10, route 1–8)</li>
+    <li data-step="8.2" class="step done">Analyze gaps (setData-after-save gives HOST_ERROR, one llm-call line, peer tie-break); fill them only within the caps</li>
+    <li data-step="8.3" class="step done">Run the full plugin suite with <code>npm test</code> in PowerShell and Git Bash; 18 tests should pass</li>
+    <li data-step="8.4" class="step done">Run <code>npm run build</code> (type-check and build of the whole project)</li>
+    <li data-step="8.5" class="step done">Run <code>git status --porcelain</code>: no generated or secret files left unignored</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>18 of 18 tests pass on Windows and in bash, and the build succeeds.</li><li>The test count stays within the caps.</li></ul></div>
+</section>
+
+<section data-group="9" class="group done deferrable">
+  <h3>Group 9 · LiteLLM Traffic Attribution (live run) <span class="g-badge"></span> <span class="sev warning">environment-dependent</span></h3>
+  <div class="deps">Dependencies: 1–8 · 6 steps · may be deferred to the verification phase if Docker, a real OpenAI key or a browser is unavailable</div>
+  <div class="chips"><code>baml_src/clients.baml</code> (header fallback only)<code>plugins/ai-offer-analysis/README.md</code> (effective mechanism)</div>
+  <ul class="steps">
+    <li data-step="9.0" class="step done">Complete the live LiteLLM traffic and attribution run</li>
+    <li data-step="9.1" class="step done">Baseline: load <code>LITELLM_MASTER_KEY</code>, record the UTC start and date window, run the <code>/spend/logs</code> count (PowerShell or bash with jq)</li>
+    <li data-step="9.2" class="step done">Start <code>docker compose up -d</code>, the host on :8080 and the plugin <code>npm run dev</code> on :3011</li>
+    <li data-step="9.3" class="step done">Trigger traffic as editor: Details tab makes no call; the AI tab auto-runs once; LG C4, Skylink, one Re-analyze; list filter; viewer makes no call. Count the <code>llm-call</code> lines</li>
+    <li data-step="9.4" class="step done">LiteLLM UI: entries, tags or end user, unmasked USD prompt, JSON response; Langfuse traces</li>
+    <li data-step="9.5" class="step done">Delta = new − baseline equals the expected count; apply the <code>x-litellm-tags</code> fallback if needed; record the mechanism in the README; no-bypass grep</li>
+    <li data-step="9.6" class="step done">Record the evidence in the work-log for the verification report</li>
+  </ul>
+  <div class="ac"><b>Acceptance:</b><ul><li>The delta equals the expected <code>llm-call</code>-derived count, and every entry is attributed to <code>ai-offer-analysis</code>.</li><li>USD prices are unmasked and Langfuse traces exist.</li><li>The README names the effective mechanism.</li></ul></div>
+</section>
+
+<h2 id="coverage">Visual coverage (<a href="visual-coverage.md" target="_blank" rel="noopener">visual-coverage.md</a>)</h2>
+<table>
+  <tr><th>Screen / component</th><th>Covered by</th><th>Status</th></tr>
+  <tr><td><code>screen:analysis-tab-needs-review-editor</code></td><td>Group 5 (helpers from Group 3)</td><td class="pass">covered</td></tr>
+  <tr><td><code>screen:analysis-tab-looks-good</code></td><td>Group 5</td><td class="pass">covered</td></tr>
+  <tr><td><code>screen:analysis-tab-auto-running</code></td><td>Group 5</td><td class="pass">covered</td></tr>
+  <tr><td><code>screen:analysis-tab-viewer-saved-result</code></td><td>Group 5</td><td class="pass">covered</td></tr>
+  <tr><td><code>screen:analysis-tab-viewer-no-analysis</code></td><td>Group 5</td><td class="pass">covered</td></tr>
+  <tr><td><code>screen:analysis-tab-error</code></td><td>Group 5; Group 4 (sanitized messages)</td><td class="pass">covered</td></tr>
+  <tr><td><code>screen:info-badge-states</code></td><td>Group 5; Group 1 (manifest filter); Group 6 (seeded manifest)</td><td class="pass">covered</td></tr>
+  <tr><td><code>component:verdict-badge</code></td><td>Group 5; Group 3 (badge helpers, domain test 9)</td><td class="pass">covered</td></tr>
+  <tr><td><code>component:analysis-section-card</code></td><td>Group 5</td><td class="pass">covered</td></tr>
+</table>
+<p style="font-size:12.5px;color:var(--dim)">All 9 are covered. Mockup details the spec marks as illustrative are implemented the spec's way:
+peers from the assigned category with self excluded, en-US 2-decimal numbers, the error subtitle only with a previous analysis, <code>&lt;progress&gt;</code> instead of a spinner, and no inline hex colors.</p>
+
+<h2 id="standards">Standards compliance</h2>
+<div class="card">
+<table>
+  <tr><th>Standard</th><th>Applies to</th></tr>
+  <tr><td><code>global/</code> (error-handling, validation, conventions, minimal-implementation, commenting, coding-style)</td><td>Groups 1, 3, 4, 7</td></tr>
+  <tr><td><code>plugins/plugin-development.md</code></td><td>Groups 1, 5, 6, 7</td></tr>
+  <tr><td><code>backend/plugin-auth.md</code></td><td>Groups 3, 4, 5</td></tr>
+  <tr><td><code>backend/migrations.md</code></td><td>Group 6</td></tr>
+  <tr><td><code>frontend/components.md</code>, <code>css.md</code>, <code>accessibility.md</code></td><td>Group 5</td></tr>
+  <tr><td><code>testing/backend-testing.md</code></td><td>Group 6</td></tr>
+</table>
+</div>
+
+<h2 id="notes">Notes</h2>
+<ul>
+  <li><b>Test-driven:</b> every code group starts with its tests or checks (domain 10, route 8). The scaffold, BAML, UI, seed, docs and live groups use the smoke checks or verification commands the spec allows.</li>
+  <li><b>Run incrementally:</b> run only the new tests after each group. The full plugin suite runs in Group 8; the host <code>./mvnw test</code> runs in Group 6.</li>
+  <li><b>Windows:</b> run Jest as <code>node node_modules/jest/bin/jest.js</code>; in PowerShell use <code>.\mvnw.cmd</code> (or <code>./mvnw</code> in Git Bash).</li>
+  <li><b>Reuse first:</b> the ai-description scaffolding, shipping's <code>canEdit</code>, the box-size badge pattern, warehouse's boolean filter and the 012 seed structure, without ai-description's known defects.</li>
+</ul>
+</main>
+</body>
+</html>

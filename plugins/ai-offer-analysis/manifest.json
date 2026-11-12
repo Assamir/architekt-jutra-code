@@ -1,0 +1,27 @@
+{
+  "name": "AI Offer Analysis",
+  "version": "1.0.0",
+  "url": "http://localhost:3011",
+  "description": "AI checks of description quality, category fit and price vs market (BAML via LiteLLM)",
+  "extensionPoints": [
+    {
+      "type": "product.detail.tabs",
+      "label": "AI Offer Analysis",
+      "path": "/product-tab",
+      "priority": 90
+    },
+    {
+      "type": "product.detail.info",
+      "label": "AI Review",
+      "path": "/product-badge",
+      "priority": 30
+    },
+    {
+      "type": "product.list.filters",
+      "label": "AI: needs review",
+      "filterKey": "needsReview",
+      "filterType": "boolean",
+      "priority": 20
+    }
+  ]
+}

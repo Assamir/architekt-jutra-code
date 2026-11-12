@@ -1,7 +1,10 @@
 model_list:
+  # Shared by ai-description and ai-offer-analysis. Upstream is OpenRouter; OPENAI_API_KEY in litellm/.env holds the OpenRouter key.
+  # To call OpenAI directly instead, put an OpenAI key there and use model openai/gpt-4o-mini.
+  # Clients keep calling the logical name "gpt-4o-mini" - only this mapping changes.
   - model_name: gpt-4o-mini
     litellm_params:
-      model: openai/gpt-4o-mini
+      model: openrouter/openai/gpt-4o-mini
       api_key: os.environ/OPENAI_API_KEY
 
   - model_name: claude-sonnet

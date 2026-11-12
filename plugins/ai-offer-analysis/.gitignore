@@ -1,0 +1,7 @@
+node_modules/
+.next/
+baml_client/
+.env
+.env*.local
+*.tsbuildinfo
+.playwright-mcp/

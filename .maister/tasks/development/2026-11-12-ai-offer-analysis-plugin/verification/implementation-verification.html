@@ -1,0 +1,98 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation Verification — AI Offer Analysis Plugin</title><style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs{display:flex;gap:14px;font-size:13px;margin-bottom:18px;flex-wrap:wrap}.crumbs a.md{margin-left:auto;color:var(--dim)}.crumbs .here{font-weight:650;color:var(--text)}
+.tiles{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;text-align:center;min-width:90px}.tile b{display:block;font-size:20px}.tile span{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.banner{border-radius:var(--radius);padding:14px 18px;background:var(--warn-soft);color:var(--warn);font-weight:650;font-size:16px;border:1px solid var(--border)}</style></head><body>
+<nav class="crumbs"><a href="../dashboard.html">← Dashboard</a><a href="../implementation/spec.html">Spec</a><a href="../implementation/implementation-plan.html">Plan</a><span class="here">Verification</span><a href="implementation-verification.md" target="_blank" rel="noopener" class="md">md twin ↗</a></nav>
+<header><h1>Implementation Verification — AI Offer Analysis Plugin</h1><span class="badge">verification · cycle 2</span></header>
+<div class="banner">⚠️ Passed with Issues — 0 critical · 1 warning · 7 info</div>
+<div class="tiles"><div class="tile"><b>58/58</b><span>plan steps</span></div><div class="tile"><b>58/58</b><span>plugin tests</span></div><div class="tile"><b>159/159</b><span>host tests</span></div><div class="tile"><b>6/6</b><span>warnings fixed</span></div><div class="tile"><b>1</b><span>open warnings</span></div></div>
+<section class="card tldr"><h2 style="margin-top:0">TL;DR</h2><p>⚠️ <b>Passed with issues</b> after two fix rounds: <b>0 critical, 1 warning, 7 info</b>. The remaining warning is a manual check: the LiteLLM UI panel.</p>
+<ul>
+<li>All 6 earlier warnings that could be fixed in code are resolved. The price check now prices the product&#x27;s own type: the demo TV went from +1117% to FAIR +12% in a live run.</li>
+<li>Tests: plugin Jest 59/59 after round 2 (58/58 in cycle 2), host 159/159, <code>tsc</code> and build clean. 4 failures in other suites (host frontend, ai-description) predate this task.</li>
+<li>Live run: every call went through LiteLLM and is logged with the tag <code>ai-offer-analysis</code> (6 success and 3 failure rows in total).</li>
+<li>Round 2: the spec now lists every deviation, the stale docs are fixed, the guardrail regex is tightened, and the &quot;market range unreliable&quot; UI is in place.</li>
+</ul><h2>Open Questions / Risks</h2><ul>
+<li><b>LiteLLM panel not checked in person.</b> It was confirmed only through <code>LiteLLM_SpendLogs</code>, the table the UI reads. Open <code>http://localhost:4000/ui</code> → Logs to confirm.</li>
+<li><b><code>BAML_LOG=warn</code> not set locally.</b> It is missing from your local <code>plugins/ai-offer-analysis/.env</code>, and its effect has not been observed live.</li>
+<li><b>Guardrail regex not tested against a real block.</b> It is not yet checked against a real Presidio CREDIT_CARD BLOCK message.</li>
+</ul></section>
+<nav class="toc">Contents: <a href="#executive-summary">Executive Summary</a> · <a href="#implementation-plan-verification-completeness-report-md">Implementation Plan Verification</a> · <a href="#test-suite">Test Suite</a> · <a href="#standards-compliance">Standards Compliance</a> · <a href="#documentation">Documentation</a> · <a href="#optional-reviews">Optional Reviews</a> · <a href="#live-run-evidence-work-log-group-9">Live-Run Evidence</a> · <a href="#fix-re-verification-history">Fix &amp; Re-Verification History</a> · <a href="#issues-requiring-attention-after-fix-round-2">Issues Requiring Attention</a> · <a href="#overall-assessment">Overall Assessment</a> · <a href="#recommendations">Recommendations</a> · <a href="#verification-checklist">Verification Checklist</a></nav><main><h2 id="executive-summary">Executive Summary</h2><div class="card"><p><code>plugins/ai-offer-analysis</code> meets the Module 3 task: BAML returns structured output, every call goes through LiteLLM, and the plugin checks description quality, category fit and price against the market on port 3011. The tab, badge and list filter all work. Five independent reviews found no critical defects. The warnings cover prompt quality on price, error-mapping precision, log hygiene and a shared-config decision.</p></div>
+<h2 id="implementation-plan-verification-completeness-report-md">Implementation Plan Verification (completeness-report.md)</h2><div class="card"><ul>
+<li><b>Steps:</b> 58 of 58 checked (100%); code spot-checks found every group present.</li>
+<li><b>Visual coverage:</b> 9 of 9 screens/components.</li>
+<li><b>Accepted deviations, all confirmed in code:</b> &quot;Invalid categories payload&quot; maps to HOST_ERROR; Re-analyze is hidden in the error state; a &quot;Loading analysis…&quot; state was added.</li>
+</ul></div>
+<h2 id="test-suite">Test Suite</h2><div class="card"><p><b>Cycle 2 (test-suite-runner, after fixes):</b> plugin Jest 58/58, <code>tsc</code> clean; host <code>./mvnw test</code> 159/159 with both 013 changesets applied. Host frontend vitest 81/83 and ai-description Jest 6/8: these failures predate this task (no frontend, Java or test-tree changes), so there are no regressions. Overall 304/308 (98.7%), see <code>test-suite-results.md</code>.</p>
+<p><b>Cycle 1:</b> the suite was not run again in that cycle, because it passed at the end of implementation:</p>
+<ul>
+<li>Plugin Jest: 2 suites, 55 of 55 cases (18 blocks). The completeness checker and reality assessor both re-ran it: 55 of 55.</li>
+<li>Host <code>./mvnw test</code>: 159 of 159 with the 013 seed applied (Group 6). No Java changes since.</li>
+<li><code>npm run build</code> passes and <code>tsc</code> is clean.</li>
+</ul></div>
+<h2 id="standards-compliance">Standards Compliance</h2><div class="card"><p>Mostly compliant: 14 of 14 applicable standards followed. One gap: the <code>litellm/config.yaml</code> change is outside the spec&#x27;s scope. The user approved it, but it is shared config.</p></div>
+<h2 id="documentation">Documentation</h2><div class="card"><p>Complete. The plugin README, root README, CLAUDE.md, plugins/CLAUDE.md and the maister docs are updated, and the port rule now says the next business module is 3012. Info: the spec and plan still expect &quot;Televisions, 2&quot; on the compact FAIR line (the README is corrected), and the accepted deviations are not recorded in the spec.</p></div>
+<h2 id="optional-reviews">Optional Reviews</h2><div class="card"><table><tr><th>Review</th><th>Verdict</th><th>Key points</th></tr><tr><td>Code review (code-review-report.md)</td><td>⚠️ 0 critical / 4 warning / 13 info</td><td>EDIT gate, sanitized errors, no <code>dangerouslySetInnerHTML</code>, effects correct. Warnings: peer-copied market range; shared OpenRouter alias; every 400 maps to CONTENT_BLOCKED; no tests for the missing-bearer and host-401 order</td></tr><tr><td>Pragmatic (pragmatic-review.md)</td><td>✅ Appropriate (0 critical / 2 medium / 7 low)</td><td>About 1.36k LOC, justified by scope. Optional slimming: <code>toOfferAnalysis</code> re-parsing, 9 <code>useState</code> hooks in the tab</td></tr><tr><td>Production readiness (production-readiness-report.md)</td><td>⚠️ GO with mitigations (local dev); NO-GO for real production</td><td>Cost gate and timeout are good, observability is verified. Fix the raw-error logging and set <code>BAML_LOG=warn</code>. Production-only gaps: hardcoded localhost URLs, master key instead of a virtual key, no rate limit</td></tr><tr><td>Reality check (reality-check.md)</td><td>⚠️ Issues found (about 90%)</td><td>6 of 8 requirements fully met. The price check is distorted by peer copying. The LiteLLM panel needs user confirmation</td></tr></table></div>
+<h2 id="live-run-evidence-work-log-group-9">Live-Run Evidence (work-log, Group 9)</h2><div class="card"><ul>
+<li><b>Request count:</b> 4 <code>llm-call</code> lines (all ok) produced 4 <code>LiteLLM_SpendLogs</code> success rows, a delta of 4 since 2026-11-12T19:07:31Z.</li>
+<li><b>Attribution:</b> <code>end_user = ai-offer-analysis</code> and <code>request_tags = [&quot;ai-offer-analysis&quot;]</code>; <code>model_group gpt-4o-mini</code> → <code>openrouter/openai/gpt-4o-mini</code>.</li>
+<li><b>Prompt:</b> contains &quot;USD 2799.00&quot; unmasked; Presidio ran.</li>
+<li><b>Langfuse:</b> 4 AnalyzeOffer traces.</li>
+<li><b>Runtime behaviour:</b> a hidden tab does not trigger an analysis, viewers cannot run one, the badge refreshes through BroadcastChannel, and the filter shows exactly the 2 flagged demo products.</li>
+</ul></div>
+<h2 id="fix-re-verification-history">Fix &amp; Re-Verification History</h2><div class="card"><table><tr><th>Issue</th><th>Fix applied (cycle 1)</th><th>Re-check (cycle 2)</th></tr><tr><td>1 Peer-copied market range</td><td>BAML <code>pricedAs</code> and reasoning now come before the numbers; the prompt forbids a peer-derived range; a domain guard nulls the deviation and sets LOW confidence (MISMATCH and range inside the peer range); the tab shows &quot;Priced as&quot;</td><td>✅ resolved: live run, Vistara &quot;65-inch OLED 4K TV&quot; FAIR +12% (was +1117%); guard tested</td></tr><tr><td>2 Shared OpenRouter mapping</td><td>Tried <code>OPENROUTER_API_KEY</code> (live run: 401, because the key was not present locally); reverted to <code>OPENAI_API_KEY</code> holding the OpenRouter key, per the user&#x27;s decision; config comment, <code>.env.example</code>, README and conventions aligned</td><td>✅ resolved: docs consistent with the config; no stale claims</td></tr><tr><td>3 Every 400 mapped to CONTENT_BLOCKED</td><td>CONTENT_BLOCKED only for a 400 that carries a guardrail marker; any other 400 maps to LLM_UNAVAILABLE</td><td>✅ resolved: tested both ways</td></tr><tr><td>4 Missing route tests</td><td>Missing bearer → 401 and host 401 → no LLM call</td><td>✅ resolved</td></tr><tr><td>5 Raw error logging</td><td>Failure log reduced to one sanitized line (error name, status, message truncated to 200 chars); the line is asserted in a test</td><td>✅ resolved: observed live in the plugin log</td></tr><tr><td>6 BAML_LOG</td><td><code>BAML_LOG=warn</code> added to the plugin <code>.env.example</code> and README</td><td>⚠️ resolved in the repo; still missing from the local <code>.env</code></td></tr></table>
+<p><b>Cycle 2 reports:</b> <code>test-suite-results.md</code>, <code>code-review-reverify.md</code> (0 critical, 1 warning, 7 info).</p>
+<p><b>Fix round 2</b> (after cycle 2):</p>
+<table><tr><th>Issue</th><th>Fix</th><th>Check</th></tr><tr><td>R1 Spec out of date</td><td>New &quot;Spec deviations (Phase 11 fix cycle 1)&quot; section (a–g) plus 29 inline &quot;amended&quot; notes in <code>spec.md</code>; <code>spec.html</code> mirrored</td><td>✅ resolved</td></tr><tr><td>R5 Stale docs</td><td><code>plugins/CLAUDE.md</code> <code>.env</code> contents; plugin README prompt-location line (plus the CONTENT_BLOCKED markers and <code>marketRangeUnreliable</code> notes)</td><td>✅ resolved</td></tr><tr><td>R4 Generic guardrail regex</td><td><code>/guardrail|presidio|blocked pii|pii entit/i</code> over <code>message</code> and <code>raw_response</code> only; new row: a generic &quot;blocked&quot;/&quot;not allowed&quot; 400 maps to LLM_UNAVAILABLE</td><td>✅ resolved: Jest 59/59</td></tr><tr><td>R3 Guard UI</td><td><code>price.marketRangeUnreliable</code> flag; the tab shows &quot;market range unreliable&quot; plus a note instead of the copied numbers; guard test asserts the flag</td><td>✅ resolved: <code>tsc</code> clean, build OK</td></tr></table>
+<p>Side effect: <code>npm run build</code> overwrote <code>.next</code> under the running dev server (pages returned 500). The orchestrator restarted the dev server and both pages now return 200. Possible standard: never run <code>next build</code> while <code>next dev</code> is running in the same plugin directory.</p></div>
+<h2 id="issues-requiring-attention-after-fix-round-2">Issues Requiring Attention (after fix round 2)</h2><div class="card"><table><tr><th>#</th><th>Severity</th><th>Source</th><th>Issue</th><th>Location</th><th>Fixable</th></tr><tr><td>R2</td><td><span class="sev warning">warning</span></td><td>reality, completeness</td><td>The LiteLLM UI panel was not opened in person; the check went through <code>LiteLLM_SpendLogs</code></td><td>user action</td><td>manual</td></tr><tr><td>R4b</td><td><span class="sev info">info</span></td><td>fix round 2</td><td>The guardrail regex has not been checked against a real Presidio CREDIT_CARD block</td><td><code>analyze.ts</code></td><td>manual</td></tr><tr><td>R6</td><td><span class="sev info">info</span></td><td>code_review (reverify)</td><td><code>BAML_LOG=warn</code> is missing from the local <code>.env</code> (user action)</td><td>local <code>.env</code></td><td>manual</td></tr><tr><td>R7</td><td><span class="sev info">info</span></td><td>production, reality</td><td>The plugin uses the LiteLLM master key, not a scoped virtual key</td><td><code>.env</code></td><td>—</td></tr><tr><td>R8</td><td><span class="sev info">info</span></td><td>production, code_review</td><td>Hardcoded localhost URLs; no rate limit on <code>/api/analyze</code></td><td>various</td><td>—</td></tr><tr><td>R9</td><td><span class="sev info">info</span></td><td>pragmatic</td><td><code>toOfferAnalysis</code> re-parses its own record; the tab has 9 <code>useState</code> hooks</td><td><code>domain.ts</code>, <code>product-tab.tsx</code></td><td>optional</td></tr><tr><td>R10</td><td><span class="sev info">info</span></td><td>test-suite</td><td>Failures that predate this task: frontend <code>auth.test.tsx</code>, <code>extension-points.test.tsx</code>; ai-description 2 tests</td><td>other suites</td><td>out of scope</td></tr><tr><td>R11</td><td><span class="sev info">info</span></td><td>production</td><td>npm audit (postcss, build time); unpinned compose images; seed manifest kept in sync with <code>manifest.json</code> by hand</td><td>various</td><td>—</td></tr></table></div>
+<h2 id="overall-assessment">Overall Assessment</h2><div class="card"><table><tr><th>Dimension</th><th>Result</th></tr><tr><td>Implementation</td><td>✅ 100%</td></tr><tr><td>Tests</td><td>✅ 58/58 plugin, 159/159 host (cycle 2); no regressions</td></tr><tr><td>Standards</td><td>⚠️ mostly compliant (shared-config gap)</td></tr><tr><td>Documentation</td><td>✅ complete</td></tr><tr><td>Code review</td><td>✅ cycle 2 plus round 2: all review warnings resolved</td></tr><tr><td>Pragmatic</td><td>✅ appropriate</td></tr><tr><td>Production</td><td>⚠️ go with mitigations (local dev); log hygiene fixed</td></tr><tr><td>Reality</td><td>⚠️ price quality fixed and confirmed live; UI confirmation still pending</td></tr><tr><td><b>Overall</b></td><td><b>⚠️ Passed with Issues</b></td></tr></table></div>
+<h2 id="recommendations">Recommendations</h2><div class="card"><ul>
+<li>Add <code>BAML_LOG=warn</code> to the local plugin <code>.env</code> (R6) and confirm the LiteLLM UI Logs page (R2).</li>
+<li>Optionally trigger one CREDIT_CARD block (e.g. a demo product description containing a test card number) to confirm the CONTENT_BLOCKED mapping live (R4b).</li>
+</ul></div>
+<h2 id="verification-checklist">Verification Checklist</h2><div class="card"><ul>
+<li>Completeness checker run</li>
+<li>Test suite (skipped: passed in implementation; re-run by the reviewers)</li>
+<li>Code review, pragmatic review, production readiness and reality check run</li>
+<li>All 5 review reports present on disk</li>
+<li>Overall status determined</li>
+<li>Cycle 2: test-suite-runner and code-review re-check after fixes</li>
+<li>Fix round 2 applied (R1, R3, R4, R5); Jest 59/59, <code>tsc</code> clean, build OK, dev server restarted (pages 200)</li>
+</ul></div>
+<img class="shot" src="screenshots/g9-tab-vistara-needs-review.png" alt="Vistara analysis tab (live run)"></main></body></html>

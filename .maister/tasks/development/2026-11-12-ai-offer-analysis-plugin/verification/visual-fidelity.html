@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visual Fidelity — ai-offer-analysis-plugin</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+.verdict { border-left:5px solid var(--warn); background:var(--warn-soft); }
+.verdict b { color:var(--warn); font-size:16px; }
+.tldr { border-left:4px solid var(--accent); }
+.scn h3 { margin:0 0 6px; font-size:15px; }
+.shots { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:10px; margin-top:10px; }
+.shots figure { margin:0; } .shots figcaption { font-size:11.5px; color:var(--dim); }
+.st-ok { color:var(--ok); font-weight:600; } .st-warn { color:var(--warn); font-weight:600; }
+dl.f { display:grid; grid-template-columns:170px 1fr; gap:4px 12px; margin:8px 0 0; }
+dl.f dt { color:var(--dim); font-size:12.5px; } dl.f dd { margin:0; }
+
+.pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+.pair figure { margin:0; } .pair figcaption { font-size:11.5px; color:var(--dim); }
+@media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+.m-ok { color:var(--ok); font-weight:700; } .m-warn { color:var(--warn); font-weight:700; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">← Dashboard</a>
+  <a href="../implementation/spec.html">Spec</a>
+  <a href="../implementation/implementation-plan.html">Plan</a>
+  <a href="implementation-verification.html">Verification</a>
+  <a href="e2e-verification-report.html">E2E</a>
+  <span class="here">Visual fidelity</span>
+  <a href="visual-fidelity.md" target="_blank" rel="noopener" class="md">md twin ↗</a>
+</nav>
+<header>
+  <span class="badge">Visual fidelity · report-only</span>
+  <h1>Visual Fidelity Report: AI Offer Analysis plugin</h1>
+  <div style="color:var(--dim);font-size:12.5px">LLM-judged structural match (not pixel diff) · source: <a href="../analysis/design-context/INDEX.md" target="_blank" rel="noopener">design-context/INDEX.md</a> · 2026-11-12 · does NOT gate completion</div>
+</header>
+<div class="tiles">
+  <div class="tile"><b>9</b><span>IDs compared</span></div>
+  <div class="tile"><b style="color:var(--ok)">8</b><span>match ✓</span></div>
+  <div class="tile"><b style="color:var(--warn)">1</b><span>minor deviation ⚠</span></div>
+  <div class="tile"><b>0</b><span>drift ✗</span></div>
+</div>
+<section class="card tldr">
+  <h2 style="margin-top:0">TL;DR</h2>
+  <ul>
+    <li>The implementation follows the 7 binding mockups closely: layout regions, header composition, section cards, badge colour semantics and copy text match.</li>
+    <li>8 of 9 design IDs match; 1 minor deviation (a coverage gap only); 0 substantive drift.</li>
+    <li>Every visible difference traces to an amendment in the spec: progress bar instead of spinner, illustrative peer numbers, LLM-dependent price layout, error-header rule, "Priced as" line.</li>
+    <li>The only visual noise is the Next.js dev indicator in dev mode.</li>
+  </ul>
+  <h2>Key Decisions</h2>
+  <ul>
+    <li><b>Match criteria.</b> A screen matches on structure, copy and class semantics. LLM values and the spec-declared illustrative values were not compared.</li>
+    <li><b>Captures.</b> The detailed price table was judged on Skylink, because Vistara's price is FAIR and therefore compact.</li>
+    <li><b>Stubbed states.</b> The auto-running and error states were captured with a stubbed <code>/api/analyze</code> (no LLM cost).</li>
+  </ul>
+  <h2>Open Questions / Risks</h2>
+  <ul><li><span class="sev warning">minor</span>The viewer stale-note variant was not reachable without a product edit, so it is unverified.</li></ul>
+</section>
+<main>
+<h2>Per-Screen Comparison (mockup left, implementation right)</h2>
+<div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:analysis-tab-needs-review-editor</code> <span class="m-ok">✓ Match</span></h3><ul><li>Header: title and subtitle left; danger &quot;Needs review&quot; and primary Re-analyze right: matches.</li><li>Section cards (tc-card tc-section, h4 plus badges in a space-between row): match.</li><li>Description POOR plus Score 3/10 with Issues/Suggestions lists; Category MISMATCH table with Assigned and Suggested (bold) rows plus reasoning: match.</li><li>Detailed Metric | USD price table (Skylink) matches. Vistara&#x27;s price is FAIR, so its section is compact, as the per-section rule requires.</li><li>Spec-sanctioned: assigned-category peers (Smart Home 179.99 / 179.99 / 279.99), en-US grouping, added &quot;Priced as&quot; line (deviation a).</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-needs-review-editor.png" alt="Mockup analysis-tab-needs-review-editor"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-needs-review-editor.html" target="_blank" rel="noopener">analysis-tab-needs-review-editor.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-10-editor-vistara-stored.png" alt="Implementation"><figcaption>Implementation: e2e-10-editor-vistara-stored.png</figcaption></figure></div><p style="font-size:12.5px;color:var(--dim);margin:8px 0 0">More captures:</p><ul style="font-size:12.5px;margin:2px 0"><li><code>screenshots/e2e-54-editor-tab-p16-price-detailed.png</code></li></ul></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:analysis-tab-looks-good</code> <span class="m-ok">✓ Match</span></h3><ul><li>Header: success &quot;Looks good&quot; plus Re-analyze: matches.</li><li>Compact GOOD summary, &quot;Assigned: Televisions - ...&quot; and the FAIR one-line price: match.</li><li>Peers are the spec-corrected values (Televisions 2: 1,299.99 / 1,749.99 / 2,199.99).</li><li>Product 2 shows the rule-driven variant: a detailed ACCEPTABLE section inside an overall &quot;Looks good&quot;.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-looks-good.png" alt="Mockup analysis-tab-looks-good"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-looks-good.html" target="_blank" rel="noopener">analysis-tab-looks-good.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-52-editor-tab-p1.png" alt="Implementation"><figcaption>Implementation: e2e-52-editor-tab-p1.png</figcaption></figure></div><p style="font-size:12.5px;color:var(--dim);margin:8px 0 0">More captures:</p><ul style="font-size:12.5px;margin:2px 0"><li><code>screenshots/e2e-03-editor-auto-run-result.png</code></li></ul></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:analysis-tab-auto-running</code> <span class="m-ok">✓ Match</span></h3><ul><li>Plain &quot;Analyzing...&quot; badge; Re-analyze visible but disabled: matches.</li><li>Indeterminate labelled &lt;progress&gt; replaces the spinner (per spec); the &quot;Analyzing this offer...&quot; copy and helper line match.</li><li>Reason line &quot;not analyzed yet&quot; variant on auto-run (the mockup shows &quot;content changed&quot;); none on manual Re-analyze, per spec.</li><li>Subtitle only when a previous analysis exists, per the header rule.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-auto-running.png" alt="Mockup analysis-tab-auto-running"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-auto-running.html" target="_blank" rel="noopener">analysis-tab-auto-running.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-30-editor-auto-running-mocked.png" alt="Implementation"><figcaption>Implementation: e2e-30-editor-auto-running-mocked.png</figcaption></figure></div><p style="font-size:12.5px;color:var(--dim);margin:8px 0 0">More captures:</p><ul style="font-size:12.5px;margin:2px 0"><li><code>screenshots/e2e-11-editor-vistara-reanalyze-running.png</code></li></ul></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:analysis-tab-viewer-saved-result</code> <span class="m-warn">⚠ Minor deviation</span></h3><ul><li>Saved result, same section cards, no Re-analyze button: matches.</li><li>Coverage gap: the stale note &quot;Product changed since this analysis. Only editors can run a new analysis.&quot; was not reachable (the analysis was current), so it is unverified.</li><li>Recommendation: check once after an intentional product edit, viewing as viewer.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-viewer-saved-result.png" alt="Mockup analysis-tab-viewer-saved-result"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-viewer-saved-result.html" target="_blank" rel="noopener">analysis-tab-viewer-saved-result.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-41-viewer-vistara-tab.png" alt="Implementation"><figcaption>Implementation: e2e-41-viewer-vistara-tab.png</figcaption></figure></div></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:analysis-tab-viewer-no-analysis</code> <span class="m-ok">✓ Match</span></h3><ul><li>Title plus a single tc-card &quot;Not analyzed yet&quot; / &quot;An editor needs to open this tab to run the first analysis.&quot;: exact copy, no buttons.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-viewer-no-analysis.png" alt="Mockup analysis-tab-viewer-no-analysis"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-viewer-no-analysis.html" target="_blank" rel="noopener">analysis-tab-viewer-no-analysis.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-42-viewer-not-analyzed-tab.png" alt="Implementation"><figcaption>Implementation: e2e-42-viewer-not-analyzed-tab.png</figcaption></figure></div></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:analysis-tab-error</code> <span class="m-ok">✓ Match</span></h3><ul><li>tc-error message, CONTENT_BLOCKED hint (identical copy) and primary Retry: match.</li><li>Header: plain &quot;Not analyzed&quot; without a subtitle, following the spec&#x27;s superseding rule; header Re-analyze hidden (deviation g).</li><li>The LLM_UNAVAILABLE variant correctly omits the hint. The variant with a previous analysis below the card was not exercised.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-error.png" alt="Mockup analysis-tab-error"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-error.html" target="_blank" rel="noopener">analysis-tab-error.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-32-editor-retry-content-blocked-mocked.png" alt="Implementation"><figcaption>Implementation: e2e-32-editor-retry-content-blocked-mocked.png</figcaption></figure></div><p style="font-size:12.5px;color:var(--dim);margin:8px 0 0">More captures:</p><ul style="font-size:12.5px;margin:2px 0"><li><code>screenshots/e2e-31-editor-auto-run-error-mocked.png</code></li></ul></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>screen:info-badge-states</code> <span class="m-ok">✓ Match</span></h3><ul><li>All three states match: danger plus 12px reasons, success, plain &quot;not analyzed yet&quot;.</li><li>The host-native &quot;AI: needs review&quot; switch and its pluginFilter query match the annotation.</li><li>Dev-only noise: the Next.js dev indicator overlaps the first badge letters.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-info-badge-states.png" alt="Mockup info-badge-states"><figcaption>Mockup: <a href="../analysis/design-context/mockups/info-badge-states.html" target="_blank" rel="noopener">info-badge-states.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-51-editor-details-badge-p16.png" alt="Implementation"><figcaption>Implementation: e2e-51-editor-details-badge-p16.png</figcaption></figure></div><p style="font-size:12.5px;color:var(--dim);margin:8px 0 0">More captures:</p><ul style="font-size:12.5px;margin:2px 0"><li><code>screenshots/e2e-50-editor-details-badge-p1.png</code></li><li><code>screenshots/e2e-01-editor-details-not-analyzed.png</code></li><li><code>screenshots/e2e-20-list-filter-needs-review.png</code></li></ul></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>component:verdict-badge</code> <span class="m-ok">✓ Match</span></h3><ul><li>Danger: POOR, MISMATCH, flagged BELOW MARKET −90%.</li><li>Success: GOOD, FITS, FAIR.</li><li>Plain: ACCEPTABLE, Score, Confidence, Analyzing..., Not analyzed.</li><li>Verdict text is always shown; Unicode minus is used.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-needs-review-editor.png" alt="Mockup analysis-tab-needs-review-editor"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-needs-review-editor.html" target="_blank" rel="noopener">analysis-tab-needs-review-editor.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-53-editor-tab-p16.png" alt="Implementation"><figcaption>Implementation: e2e-53-editor-tab-p16.png</figcaption></figure></div></div><div class="card"><h3 style="margin:0 0 6px;font-size:15px"><code>component:analysis-section-card</code> <span class="m-ok">✓ Match</span></h3><ul><li>tc-card tc-section, h4 plus badges in a tc-flex row, then tc-table and the reasoning: matches.</li><li>The DOM uses only tc-plugin / tc-flex / tc-badge(--danger|--success) / tc-primary-button / tc-card / tc-section / tc-table (plus tc-error); no inline hex or rgb; root padding 16px.</li></ul><div class="pair"><figure><img class="shot" src="screenshots/e2e-mockup-analysis-tab-needs-review-editor.png" alt="Mockup analysis-tab-needs-review-editor"><figcaption>Mockup: <a href="../analysis/design-context/mockups/analysis-tab-needs-review-editor.html" target="_blank" rel="noopener">analysis-tab-needs-review-editor.html</a></figcaption></figure><figure><img class="shot" src="screenshots/e2e-54-editor-tab-p16-price-detailed.png" alt="Implementation"><figcaption>Implementation: e2e-54-editor-tab-p16-price-detailed.png</figcaption></figure></div></div>
+</main>
+</body>
+</html>

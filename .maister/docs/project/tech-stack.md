@@ -45,13 +45,14 @@ Technology choices for **aj**, a microkernel (plugin-based) platform: a Spring B
 | `box-size` | React 19 + Vite 8 | 3002 |
 | `ai-description` | Next.js 15 + BAML 0.220 (LLM via LiteLLM) | 3003 |
 | `shipping` | React 19 + Vite 8 | 3010 |
+| `ai-offer-analysis` | Next.js 15 + BAML 0.220 (LLM via LiteLLM) | 3011 |
 
-Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, next business module 3011).
+Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, ai-offer-analysis 3011, next business module 3012).
 
 ### Testing
 - **Backend**: JUnit 5, Spring Boot test starters (JPA/jOOQ/Liquibase/WebMVC), `spring-security-test`, TestContainers (PostgreSQL 18)
 - **Host frontend**: Vitest 3, @testing-library/react, jest-dom, jsdom
-- **ai-description plugin**: Jest 29
+- **ai-description and ai-offer-analysis plugins**: Jest 29
 
 ## Database
 
@@ -69,7 +70,7 @@ Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and 
 
 ### Containerization (`compose.yml`)
 - `postgres:18` — application database
-- AI tooling for `ai-description`: LiteLLM (+ its Postgres), Langfuse + worker (+ Postgres, ClickHouse, MinIO via `pgsty/minio`, Redis 7), Presidio analyzer/anonymizer
+- AI tooling for `ai-description` and `ai-offer-analysis`: LiteLLM (+ its Postgres), Langfuse + worker (+ Postgres, ClickHouse, MinIO via `pgsty/minio`, Redis 7), Presidio analyzer/anonymizer
 
 ### Local orchestration
 - `start-dev.sh` / `start-dev.ps1` start compose services, host app, MCP server and every plugin with a `package.json`
