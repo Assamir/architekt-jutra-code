@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
-import static java.util.Map.entry;
 
 @RestController
 public class OAuth2MetadataController {
@@ -39,17 +38,16 @@ public class OAuth2MetadataController {
     public Map<String, Object> getAuthorizationServerMetadata(HttpServletRequest request) {
         String baseUrl = getBaseUrl(request);
 
-        return Map.ofEntries(
-                entry("issuer", baseUrl),
-                entry("authorization_endpoint", baseUrl + "/oauth2/authorize"),
-                entry("token_endpoint", baseUrl + "/oauth2/token"),
-                entry("registration_endpoint", baseUrl + "/oauth2/register"),
-                entry("introspection_endpoint", baseUrl + "/oauth2/introspect"),
-                entry("grant_types_supported", new String[]{"authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:token-exchange"}),
-                entry("response_types_supported", new String[]{"code"}),
-                entry("code_challenge_methods_supported", new String[]{"S256"}),
-                entry("token_endpoint_auth_methods_supported", new String[]{"client_secret_post", "client_secret_basic", "none"}),
-                entry("scopes_supported", new String[]{"mcp:read", "mcp:edit"})
+        return Map.of(
+                "issuer", baseUrl,
+                "authorization_endpoint", baseUrl + "/oauth2/authorize",
+                "token_endpoint", baseUrl + "/oauth2/token",
+                "registration_endpoint", baseUrl + "/oauth2/register",
+                "grant_types_supported", new String[]{"authorization_code", "refresh_token"},
+                "response_types_supported", new String[]{"code"},
+                "code_challenge_methods_supported", new String[]{"S256"},
+                "token_endpoint_auth_methods_supported", new String[]{"client_secret_post", "client_secret_basic", "none"},
+                "scopes_supported", new String[]{"mcp:read", "mcp:edit"}
         );
     }
 

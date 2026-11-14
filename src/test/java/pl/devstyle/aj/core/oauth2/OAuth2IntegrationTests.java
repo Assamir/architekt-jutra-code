@@ -19,7 +19,6 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -91,20 +90,6 @@ class OAuth2IntegrationTests {
                 .andExpect(jsonPath("$.authorization_endpoint").value(containsString("/oauth2/authorize")))
                 .andExpect(jsonPath("$.token_endpoint").value(containsString("/oauth2/token")))
                 .andExpect(jsonPath("$.registration_endpoint").value(containsString("/oauth2/register")));
-    }
-
-    @Test
-    void getMetadata_includesIntrospectionEndpointAndTokenExchangeGrant() throws Exception {
-        mockMvc.perform(get("/.well-known/oauth-authorization-server"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.introspection_endpoint").value(containsString("/oauth2/introspect")))
-                .andExpect(jsonPath("$.grant_types_supported").isArray())
-                .andExpect(jsonPath("$.grant_types_supported", hasItem("authorization_code")))
-                .andExpect(jsonPath("$.grant_types_supported", hasItem("refresh_token")))
-                .andExpect(jsonPath("$.grant_types_supported", hasItem("urn:ietf:params:oauth:grant-type:token-exchange")))
-                .andExpect(jsonPath("$.scopes_supported").isArray())
-                .andExpect(jsonPath("$.scopes_supported", hasItem("mcp:read")))
-                .andExpect(jsonPath("$.scopes_supported", hasItem("mcp:edit")));
     }
 
     @Test

@@ -99,7 +99,7 @@ class ToolSchemaValidationTests {
     void listProducts_outputSchema_validatesAgainstSampleResponse() throws Exception {
         when(ajApiClient.listProducts(any())).thenReturn(List.of(sampleProduct));
 
-        Map<String, List<ProductResponse>> response = productService.listProducts(null);
+        Map<String, List<ProductResponse>> response = productService.listProducts("test-token", null);
         JsonNode responseJson = objectMapper.valueToTree(response);
 
         McpStatelessServerFeatures.SyncToolSpecification toolSpec = productService.buildToolListProducts();
@@ -136,7 +136,7 @@ class ToolSchemaValidationTests {
     void listCategories_outputSchema_validatesAgainstSampleResponse() throws Exception {
         when(ajApiClient.listCategories()).thenReturn(List.of(sampleCategory));
 
-        Map<String, List<CategoryResponse>> response = categoryService.listCategories();
+        Map<String, List<CategoryResponse>> response = categoryService.listCategories("test-token");
         JsonNode responseJson = objectMapper.valueToTree(response);
 
         McpStatelessServerFeatures.SyncToolSpecification toolSpec = categoryService.buildToolListCategories();

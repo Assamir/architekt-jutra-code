@@ -24,8 +24,6 @@ aj:
     url: ${AJ_BACKEND_URL:http://localhost:8080}
   oauth:
     server-url: ${AJ_OAUTH_SERVER_URL:https://kuba-app.labs-skillpanel.com}
-    client-id: ${AJ_OAUTH_CLIENT_ID:mcp-server}
-    client-secret: ${AJ_OAUTH_CLIENT_SECRET:mcp-server-secret}
   mcp:
     base-url: ${AJ_MCP_BASE_URL:https://kuba-mcp.labs-skillpanel.com}
 

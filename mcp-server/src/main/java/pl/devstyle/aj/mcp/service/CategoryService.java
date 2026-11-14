@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpStatelessServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
+import pl.devstyle.aj.mcp.AjMcpApplication;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import pl.devstyle.aj.mcp.AjMcpApplication;
 import pl.devstyle.aj.mcp.client.AjApiClient;
-import pl.devstyle.aj.mcp.security.ExchangedTokenHolder;
+import pl.devstyle.aj.mcp.security.AccessTokenHolder;
 import pl.devstyle.aj.mcp.client.dto.CategoryResponse;
 import pl.devstyle.aj.mcp.exception.McpToolException;
 
@@ -22,9 +22,11 @@ import java.util.Map;
 public class CategoryService {
 
     private final AjApiClient ajApiClient;
+    private final AccessTokenHolder accessTokenHolder;
     private final ObjectMapper objectMapper;
 
-    public Map<String, List<CategoryResponse>> listCategories() {
+    public Map<String, List<CategoryResponse>> listCategories(String token) {
+        accessTokenHolder.setAccessToken(token);
         try {
             return Map.of("categories", ajApiClient.listCategories());
         } catch (McpToolException ex) {
@@ -38,17 +40,14 @@ public class CategoryService {
     public McpStatelessServerFeatures.SyncToolSpecification buildToolListCategories() {
         return McpStatelessServerFeatures.SyncToolSpecification.builder()
                 .callHandler((ctx, _) -> {
-                    ExchangedTokenHolder.set((String) ctx.get(AjMcpApplication.TOKEN_B_KEY));
+                    var result = listCategories((String) ctx.get(AjMcpApplication.TOKEN_KEY));
                     try {
-                        var result = listCategories();
                         Object structured = objectMapper.convertValue(result, Map.class);
                         String json = objectMapper.writeValueAsString(structured);
                         return new McpSchema.CallToolResult(
                                 List.of(new McpSchema.TextContent(json)), false, structured, null);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
-                    } finally {
-                        ExchangedTokenHolder.clear();
                     }
                 })
                 .tool(McpSchema.Tool.builder()

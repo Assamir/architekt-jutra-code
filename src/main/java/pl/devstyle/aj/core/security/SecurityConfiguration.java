@@ -23,8 +23,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import pl.devstyle.aj.core.error.ErrorResponse;
 import pl.devstyle.aj.core.oauth2.AuthorizationCodeService;
 import pl.devstyle.aj.core.oauth2.OAuth2AuthorizationFilter;
-import pl.devstyle.aj.core.oauth2.OAuth2ClientAuthenticator;
-import pl.devstyle.aj.core.oauth2.OAuth2IntrospectionFilter;
 import pl.devstyle.aj.core.oauth2.OAuth2TokenFilter;
 import pl.devstyle.aj.core.oauth2.PublicClientRegistrationFilter;
 import pl.devstyle.aj.core.oauth2.RefreshTokenService;
@@ -94,7 +92,6 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/.well-known/oauth-authorization-server").permitAll()
                         .requestMatchers(HttpMethod.POST, "/oauth2/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/oauth2/token").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/oauth2/introspect").permitAll()
 
                         // Public endpoints
                         .requestMatchers(HttpMethod.GET, "/api/oauth2/client-info").permitAll()
@@ -141,13 +138,8 @@ public class SecurityConfiguration {
                 .addFilterAfter(new OAuth2AuthorizationFilter(registeredClientRepository, authorizationCodeService),
                         PublicClientRegistrationFilter.class)
                 .addFilterAfter(new OAuth2TokenFilter(registeredClientRepository, authorizationCodeService,
-                                refreshTokenService, jwtTokenProvider, passwordEncoder(),
-                                new OAuth2ClientAuthenticator(registeredClientRepository, passwordEncoder())),
-                        OAuth2AuthorizationFilter.class)
-                .addFilterAfter(new OAuth2IntrospectionFilter(
-                                new OAuth2ClientAuthenticator(registeredClientRepository, passwordEncoder()),
-                                jwtTokenProvider),
-                        OAuth2TokenFilter.class);
+                                refreshTokenService, jwtTokenProvider, passwordEncoder()),
+                        OAuth2AuthorizationFilter.class);
 
         return http.build();
     }
