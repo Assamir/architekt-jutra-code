@@ -23,14 +23,14 @@ Technology choices for **aj**, a microkernel (plugin-based) platform: a Spring B
 | `starter-liquibase` | schema migrations |
 | `starter-validation` | request validation |
 | `starter-security` + jjwt 0.12.6 | stateless JWT auth, permission-based authorization |
-| `spring-security-oauth2-authorization-server` | host acts as OAuth2 AS for the MCP server |
+| `spring-security-oauth2-authorization-server` | host acts as OAuth2 AS for the MCP server: `RegisteredClient` model and types; the authorize, token (incl. RFC 8693 exchange), RFC 7662 introspection and metadata endpoints are custom filters in `core/oauth2` |
 | `spring-boot-docker-compose` | auto-starts compose services in dev |
 | spring-retry 2.0.12 + `spring-aspects` | retrying async audit in `footprint` |
 | commons-csv 1.10.0 | CSV export in `footprint` |
 | micrometer-core | metrics |
 
 ### Backend (MCP server, `mcp-server/pom.xml`)
-- Spring Boot 4.0.5 (`starter-web`, `starter-security`, `starter-actuator`)
+- Spring Boot 4.0.5 (`starter-web`, `starter-security`, `starter-security-oauth2-resource-server`, `starter-actuator`); the resource-server starter validates bearer tokens by RFC 7662 introspection against the host and publishes protected resource metadata
 - `mcp-spring-webmvc` 0.18.1 (MCP Java SDK)
 - `json-schema-validator` 2.0.0
 
@@ -87,5 +87,5 @@ Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and 
 - Node version pinned for Maven builds via frontend-maven-plugin
 
 ---
-*Last Updated*: 2026-11-07
+*Last Updated*: 2026-11-14
 *Auto-detected*: from `pom.xml`, `mcp-server/pom.xml`, `package.json` files, `compose.yml`, Vite configs

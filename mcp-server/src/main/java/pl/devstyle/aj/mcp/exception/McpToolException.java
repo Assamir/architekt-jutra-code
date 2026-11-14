@@ -38,6 +38,10 @@ public class McpToolException extends RuntimeException {
         return new McpToolException(ErrorType.API_ERROR, message, cause);
     }
 
+    public static McpToolException insufficientScope(String required) {
+        return new McpToolException(ErrorType.INSUFFICIENT_SCOPE, "Insufficient scope: requires " + required);
+    }
+
     public static McpToolException invalidCriteria(String details, String suggestion) {
         return new McpToolException(ErrorType.VALIDATION,
                 String.format("Invalid criteria: %s. %s", details, suggestion));
@@ -46,6 +50,7 @@ public class McpToolException extends RuntimeException {
     public enum ErrorType {
         VALIDATION,
         NOT_FOUND,
-        API_ERROR
+        API_ERROR,
+        INSUFFICIENT_SCOPE
     }
 }

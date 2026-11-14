@@ -22,7 +22,7 @@ Stack: Next.js 15 (Pages Router), BAML `0.220.0` (pinned; the generator version 
 
 1. The tab iframe on `:3011` gets the user's token from the host via postMessage (`hostApp.getToken()`).
 2. It sends a same-origin `POST /api/analyze` with `{productId}` and the Bearer token to the Next.js route (`src/pages/api/analyze.ts`).
-3. The route rejects requests without the `EDIT` permission (403, no host or LLM call), then calls the host on `:8080` with the forwarded token: `GET /api/products/{id}`, `GET /api/categories` and `GET /api/products?category=<assigned category id>`.
+3. The route rejects requests without the `EDIT` permission (403, no host or LLM call), then calls the host on `:8180` with the forwarded token: `GET /api/products/{id}`, `GET /api/categories` and `GET /api/products?category=<assigned category id>`.
 4. It runs BAML `AnalyzeOffer` (45 s timeout) against LiteLLM on `:4000`: Presidio pre-call guardrail, then the upstream model; the spend log goes to litellm-db and a trace to Langfuse.
 5. It stores the result in the host:
    - the full record as a plugin object: `PUT /api/plugins/ai-offer-analysis/objects/analysis/{id}?entityType=PRODUCT&entityId={id}`;
@@ -50,7 +50,7 @@ When the LLM call fails, nothing is saved.
 
 ## Setup
 
-Prerequisites: the host on `:8080` with the `dev` context, and the Docker Compose AI tooling (`docker compose up -d`: LiteLLM, Langfuse, Presidio) with `litellm/.env` filled in (see the root README).
+Prerequisites: the host on `:8180` with the `dev` context, and the Docker Compose AI tooling (`docker compose up -d`: LiteLLM, Langfuse, Presidio) with `litellm/.env` filled in (see the root README).
 
 ```bash
 cd plugins/ai-offer-analysis
@@ -59,9 +59,11 @@ npm install             # also runs `baml-cli generate` (postinstall) and create
 npm run dev             # http://localhost:3011
 ```
 
+Dev ports: host `:8180`, MCP server `:8181` (management `:9181`); configure MCP clients at `http://localhost:8181`. `HOST_BASE_URL` defaults to `http://localhost:8180`, so the plugin needs no extra setting while the host runs on its default port. `start-dev` wires matching OAuth client secrets for the host and the MCP server; if you start them by hand, export the same `AJ_OAUTH_CLIENT_SECRET` in both shells (the value `start-dev` stored in the gitignored `.aj-dev.env`, if any), because a mismatch fails closed: the host answers `401 invalid_client` and the MCP client sees a 5xx or a tool error (see "Manual Start" in the root README). The plugin itself never needs that secret.
+
 After editing anything in `baml_src/`, run `npm run generate`. `baml_client/`, `.next/` and `.env` are gitignored.
 
-The plugin `.env` holds only the LiteLLM proxy key (`LITELLM_API_KEY`), `BAML_LOG=warn` (keeps BAML from echoing prompts and responses, which contain unmasked product text, to stdout) and, optionally, `HOST_BASE_URL` (default `http://localhost:8080`). Provider keys live only in `litellm/.env`.
+The plugin `.env` holds only the LiteLLM proxy key (`LITELLM_API_KEY`), `BAML_LOG=warn` (keeps BAML from echoing prompts and responses, which contain unmasked product text, to stdout) and, optionally, `HOST_BASE_URL` (default `http://localhost:8180`). Provider keys live only in `litellm/.env`.
 
 ## Registration
 
@@ -70,15 +72,15 @@ On a dev database the plugin is registered automatically by the Liquibase dev se
 To register by hand, log in as the dev admin user (the token is in the `token` field) and upload the manifest with a token that has `PERMISSION_PLUGIN_MANAGEMENT`:
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" \
+TOKEN=$(curl -s -X POST http://localhost:8180/api/auth/login -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}' | sed -E 's/.*"token":"([^"]+)".*/\1/')
-curl -X PUT http://localhost:8080/api/plugins/ai-offer-analysis/manifest \
+curl -X PUT http://localhost:8180/api/plugins/ai-offer-analysis/manifest \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d @manifest.json
 ```
 
 ```powershell
-$token = (Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/auth/login -ContentType 'application/json' -Body '{"username":"admin","password":"admin123"}').token
-Invoke-RestMethod -Method Put -Uri http://localhost:8080/api/plugins/ai-offer-analysis/manifest -Headers @{ Authorization = "Bearer $token" } -ContentType 'application/json' -InFile manifest.json
+$token = (Invoke-RestMethod -Method Post -Uri http://localhost:8180/api/auth/login -ContentType 'application/json' -Body '{"username":"admin","password":"admin123"}').token
+Invoke-RestMethod -Method Put -Uri http://localhost:8180/api/plugins/ai-offer-analysis/manifest -Headers @{ Authorization = "Bearer $token" } -ContentType 'application/json' -InFile manifest.json
 ```
 
 **Manifest changes.** The seed uses `ON CONFLICT (id) DO NOTHING` and never updates an existing row. After editing `manifest.json`, re-register with the same `PUT .../manifest` command. Keep the JSONB in the 013 seed in sync with `manifest.json` for fresh databases.
@@ -123,7 +125,7 @@ A failed analysis adds one `console.error` line with the product id, stage, code
 **Preconditions**
 - `litellm/.env` holds a real key in `OPENAI_API_KEY` matching the `gpt-4o-mini` mapping in `litellm/config.yaml` (an OpenRouter key for `openrouter/openai/gpt-4o-mini`, an OpenAI key for `openai/gpt-4o-mini`).
 - `docker compose up -d` is running, with litellm, litellm-db, langfuse (+ worker, ClickHouse, MinIO, Redis) and Presidio healthy.
-- The host runs on `:8080` with the dev context, so the 013 seed is applied.
+- The host runs on `:8180` with the dev context, so the 013 seed is applied.
 - The plugin has `.env` and is started with `npm run dev` on `:3011`.
 
 **Ground truth.** The number of LLM calls is the number of `[ai-offer-analysis] llm-call` lines printed in the plugin's `npm run dev` terminal during the run. The browser's `POST /api/analyze` count is only a cross-check, because it also includes requests rejected before BAML. Expected LiteLLM entries:

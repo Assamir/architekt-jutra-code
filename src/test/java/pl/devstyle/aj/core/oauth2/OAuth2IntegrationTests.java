@@ -2,12 +2,15 @@ package pl.devstyle.aj.core.oauth2;
 
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 import pl.devstyle.aj.TestcontainersConfiguration;
 import pl.devstyle.aj.api.LoginRequest;
@@ -18,7 +21,9 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -83,13 +88,27 @@ class OAuth2IntegrationTests {
     }
 
     @Test
-    void getMetadata_returnsOAuth2ServerMetadata() throws Exception {
-        mockMvc.perform(get("/.well-known/oauth-authorization-server"))
+    void getMetadata_returnsConfiguredIssuerIntrospectionAndExchangeGrant() throws Exception {
+        var issuer = "http://localhost:8180";
+
+        mockMvc.perform(get("/.well-known/oauth-authorization-server")
+                        .header("X-Forwarded-Host", "attacker.example")
+                        .header("X-Forwarded-Proto", "https"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.issuer").value(notNullValue()))
-                .andExpect(jsonPath("$.authorization_endpoint").value(containsString("/oauth2/authorize")))
-                .andExpect(jsonPath("$.token_endpoint").value(containsString("/oauth2/token")))
-                .andExpect(jsonPath("$.registration_endpoint").value(containsString("/oauth2/register")));
+                .andExpect(jsonPath("$.issuer").value(issuer))
+                .andExpect(jsonPath("$.authorization_endpoint").value(issuer + "/oauth2/authorize"))
+                .andExpect(jsonPath("$.token_endpoint").value(issuer + "/oauth2/token"))
+                .andExpect(jsonPath("$.registration_endpoint").value(issuer + "/oauth2/register"))
+                .andExpect(jsonPath("$.introspection_endpoint").value(issuer + "/oauth2/introspect"))
+                .andExpect(jsonPath("$.introspection_endpoint_auth_methods_supported",
+                        contains("client_secret_basic", "client_secret_post")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported",
+                        contains("client_secret_post", "client_secret_basic", "none")))
+                .andExpect(jsonPath("$.grant_types_supported", contains("authorization_code", "refresh_token",
+                        "urn:ietf:params:oauth:grant-type:token-exchange")))
+                .andExpect(jsonPath("$.response_types_supported", contains("code")))
+                .andExpect(jsonPath("$.code_challenge_methods_supported", contains("S256")))
+                .andExpect(jsonPath("$.scopes_supported", contains("mcp:read", "mcp:edit")));
     }
 
     @Test
@@ -131,6 +150,113 @@ class OAuth2IntegrationTests {
                 .andExpect(jsonPath("$.error").value("invalid_client_metadata"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://localhost:3000/cb?x=a b",
+            "http://localhost:3000/{cb}",
+            "https://client.example/cb?x=ä",
+            "https://client.example:port/cb"
+    })
+    void registerClient_redirectUriWithIllegalCharacters_returns400(String redirectUri) throws Exception {
+        postRegistration("""
+                {
+                    "client_name": "Bad Redirect Client",
+                    "grant_types": ["authorization_code"],
+                    "redirect_uris": ["%s"],
+                    "token_endpoint_auth_method": "none"
+                }
+                """.formatted(redirectUri))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_client_metadata"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://localhost.attacker.example/cb",
+            "http://127.0.0.1.nip.io/cb",
+            "http://localhost@attacker.example/cb",
+            "http://[::1].attacker.example/cb",
+            "http:/localhost/cb",
+            "ftp://localhost/cb"
+    })
+    void registerClient_loopbackPrefixHost_returns400(String redirectUri) throws Exception {
+        postRegistration("""
+                {
+                    "client_name": "Prefix Host Client",
+                    "grant_types": ["authorization_code"],
+                    "redirect_uris": ["%s"],
+                    "token_endpoint_auth_method": "none"
+                }
+                """.formatted(redirectUri))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_client_metadata"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://localhost:3000/callback",
+            "http://127.0.0.1/callback?tenant=a%20b",
+            "http://[::1]:6274/oauth/callback",
+            "https://client.example/callback"
+    })
+    void registerClient_loopbackOrHttpsRedirectUri_returns201(String redirectUri) throws Exception {
+        postRegistration("""
+                {
+                    "client_name": "Valid Redirect Client",
+                    "grant_types": ["authorization_code"],
+                    "redirect_uris": ["%s"],
+                    "token_endpoint_auth_method": "none"
+                }
+                """.formatted(redirectUri))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.redirect_uris", contains(redirectUri)));
+    }
+
+    @Test
+    void registerClient_withoutGrantTypes_returns201WithAuthorizationCodeDefault() throws Exception {
+        postRegistration("""
+                {
+                    "client_name": "Default Grant Client",
+                    "redirect_uris": ["http://localhost:3000/callback"],
+                    "token_endpoint_auth_method": "none"
+                }
+                """)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.client_id").value(notNullValue()))
+                .andExpect(jsonPath("$.grant_types", contains("authorization_code")));
+    }
+
+    @Test
+    void registerClient_withoutRedirectUris_returns400() throws Exception {
+        postRegistration("""
+                {
+                    "client_name": "No Redirect Client",
+                    "token_endpoint_auth_method": "none"
+                }
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_client_metadata"));
+    }
+
+    @Test
+    void registerClient_refreshOnlyWithoutRedirectUris_returns400() throws Exception {
+        postRegistration("""
+                {
+                    "client_name": "Refresh Only Client",
+                    "grant_types": ["refresh_token"],
+                    "token_endpoint_auth_method": "none"
+                }
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_client_metadata"));
+    }
+
+    private ResultActions postRegistration(String body) throws Exception {
+        return mockMvc.perform(post("/oauth2/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
     @Test
     void authorizationCodeFlow_fullCycle() throws Exception {
         var token = loginAndGetToken("admin", "admin123");
@@ -159,9 +285,8 @@ class OAuth2IntegrationTests {
                 .andReturn();
 
         var location = authorizeResult.getResponse().getHeader("Location");
-        assert location != null && location.startsWith(redirectUri);
+        assertThat(location).startsWith(redirectUri).contains("state=test-state");
         var code = extractQueryParam(location, "code");
-        assert location.contains("state=test-state");
 
         // Token exchange
         mockMvc.perform(post("/oauth2/token")
@@ -171,9 +296,14 @@ class OAuth2IntegrationTests {
                         .param("client_id", clientId)
                         .param("code_verifier", codeVerifier))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Pragma", "no-cache"))
                 .andExpect(jsonPath("$.access_token").value(notNullValue()))
                 .andExpect(jsonPath("$.refresh_token").value(notNullValue()))
-                .andExpect(jsonPath("$.token_type").value("Bearer"));
+                .andExpect(jsonPath("$.token_type").value("Bearer"))
+                .andExpect(jsonPath("$.expires_in").value(900))
+                .andExpect(jsonPath("$.scope").value("mcp:read mcp:edit"))
+                .andExpect(jsonPath("$.issued_token_type").doesNotExist());
     }
 
     @Test
@@ -230,7 +360,7 @@ class OAuth2IntegrationTests {
     }
 
     @Test
-    void tokenExchange_withRefreshToken_returnsNewAccessToken() throws Exception {
+    void refreshToken_sameClient_returnsNewAccessToken() throws Exception {
         var token = loginAndGetToken("admin", "admin123");
         var redirectUri = "http://localhost:3000/callback";
 
@@ -267,18 +397,22 @@ class OAuth2IntegrationTests {
         var tokenJson = objectMapper.readTree(tokenResult.getResponse().getContentAsString());
         var refreshToken = tokenJson.get("refresh_token").asText();
 
-        // Refresh token exchange
+        // Refresh token exchange by the client the token was issued to
         mockMvc.perform(post("/oauth2/token")
                         .param("grant_type", "refresh_token")
-                        .param("refresh_token", refreshToken))
+                        .param("refresh_token", refreshToken)
+                        .param("client_id", clientId))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Pragma", "no-cache"))
                 .andExpect(jsonPath("$.access_token").value(notNullValue()))
-                .andExpect(jsonPath("$.refresh_token").value(notNullValue()))
-                .andExpect(jsonPath("$.token_type").value("Bearer"));
+                .andExpect(jsonPath("$.refresh_token").value(not(refreshToken)))
+                .andExpect(jsonPath("$.token_type").value("Bearer"))
+                .andExpect(jsonPath("$.expires_in").value(900));
     }
 
     @Test
-    void tokenExchange_withInvalidCode_returns400() throws Exception {
+    void authorizationCode_invalidCode_returns400() throws Exception {
         mockMvc.perform(post("/oauth2/token")
                         .param("grant_type", "authorization_code")
                         .param("code", "invalid-code")

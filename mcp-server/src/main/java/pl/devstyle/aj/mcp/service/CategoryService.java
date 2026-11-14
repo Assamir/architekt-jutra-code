@@ -4,14 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpStatelessServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-import pl.devstyle.aj.mcp.AjMcpApplication;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.stereotype.Service;
 import pl.devstyle.aj.mcp.client.AjApiClient;
-import pl.devstyle.aj.mcp.security.AccessTokenHolder;
+import pl.devstyle.aj.mcp.client.TokenExchangeClient;
 import pl.devstyle.aj.mcp.client.dto.CategoryResponse;
 import pl.devstyle.aj.mcp.exception.McpToolException;
+import pl.devstyle.aj.mcp.security.ToolSecurity;
 
 import java.util.List;
 import java.util.Map;
@@ -21,14 +22,17 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CategoryService {
 
+    private static final String READ_SCOPE = "mcp:read";
+
     private final AjApiClient ajApiClient;
-    private final AccessTokenHolder accessTokenHolder;
+    private final TokenExchangeClient tokenExchangeClient;
     private final ObjectMapper objectMapper;
 
-    public Map<String, List<CategoryResponse>> listCategories(String token) {
-        accessTokenHolder.setAccessToken(token);
+    public Map<String, List<CategoryResponse>> listCategories(BearerTokenAuthentication caller) {
+        String subjectToken = ToolSecurity.requireScope(caller, READ_SCOPE);
+        String authorization = "Bearer " + tokenExchangeClient.exchange(subjectToken);
         try {
-            return Map.of("categories", ajApiClient.listCategories());
+            return Map.of("categories", ajApiClient.listCategories(authorization));
         } catch (McpToolException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -40,7 +44,7 @@ public class CategoryService {
     public McpStatelessServerFeatures.SyncToolSpecification buildToolListCategories() {
         return McpStatelessServerFeatures.SyncToolSpecification.builder()
                 .callHandler((ctx, _) -> {
-                    var result = listCategories((String) ctx.get(AjMcpApplication.TOKEN_KEY));
+                    var result = listCategories(ToolSecurity.principal(ctx));
                     try {
                         Object structured = objectMapper.convertValue(result, Map.class);
                         String json = objectMapper.writeValueAsString(structured);

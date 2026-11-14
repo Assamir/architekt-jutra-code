@@ -16,12 +16,12 @@ class ConfigurationTests {
     private int managementPort;
 
     @Test
-    void serverPort_isConfiguredTo8081() {
-        assertThat(serverPort).isEqualTo(8081);
+    void serverPort_isConfiguredTo8181() {
+        assertThat(serverPort).isEqualTo(8181);
     }
 
     @Test
-    void managementPort_isConfiguredTo9081() {
-        assertThat(managementPort).isEqualTo(9081);
+    void managementPort_isConfiguredTo9181() {
+        assertThat(managementPort).isEqualTo(9181);
     }
 }

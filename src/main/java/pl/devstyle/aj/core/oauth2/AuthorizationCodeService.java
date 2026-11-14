@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -19,10 +18,10 @@ public class AuthorizationCodeService {
 
     public void storeAuthorizationCode(String code, String clientId, String redirectUri, String scope,
                                        String codeChallenge, String codeChallengeMethod,
-                                       String username, Set<String> permissions) {
+                                       String username, String resource) {
         var data = new AuthorizationCodeData(
                 clientId, redirectUri, scope, codeChallenge, codeChallengeMethod,
-                username, permissions, Instant.now()
+                username, resource, Instant.now()
         );
         authorizationCodes.put(code, data);
         log.debug("Stored authorization code for client: {} with TTL: {}s", clientId, CODE_EXPIRATION_SECONDS);
@@ -68,7 +67,7 @@ public class AuthorizationCodeService {
             String codeChallenge,
             String codeChallengeMethod,
             String username,
-            Set<String> permissions,
+            String resource,
             Instant createdAt
     ) {}
 }

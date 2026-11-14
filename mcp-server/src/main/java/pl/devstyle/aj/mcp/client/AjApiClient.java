@@ -1,6 +1,8 @@
 package pl.devstyle.aj.mcp.client;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.service.annotation.GetExchange;
 import org.springframework.web.service.annotation.HttpExchange;
@@ -15,11 +17,13 @@ import java.util.List;
 public interface AjApiClient {
 
     @GetExchange("/api/products")
-    List<ProductResponse> listProducts(@RequestParam(required = false) String search);
+    List<ProductResponse> listProducts(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                       @RequestParam(required = false) String search);
 
     @PostExchange("/api/products")
-    ProductResponse createProduct(@RequestBody CreateProductRequest request);
+    ProductResponse createProduct(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                  @RequestBody CreateProductRequest request);
 
     @GetExchange("/api/categories")
-    List<CategoryResponse> listCategories();
+    List<CategoryResponse> listCategories(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization);
 }

@@ -4,15 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpStatelessServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-import pl.devstyle.aj.mcp.AjMcpApplication;
-import pl.devstyle.aj.mcp.security.AccessTokenHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.stereotype.Service;
 import pl.devstyle.aj.mcp.client.AjApiClient;
+import pl.devstyle.aj.mcp.client.TokenExchangeClient;
 import pl.devstyle.aj.mcp.client.dto.CreateProductRequest;
 import pl.devstyle.aj.mcp.client.dto.ProductResponse;
 import pl.devstyle.aj.mcp.exception.McpToolException;
+import pl.devstyle.aj.mcp.security.ToolSecurity;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,14 +24,17 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProductService {
 
+    private static final String READ_SCOPE = "mcp:read";
+    private static final String EDIT_SCOPE = "mcp:edit";
+
     private final AjApiClient ajApiClient;
-    private final AccessTokenHolder accessTokenHolder;
+    private final TokenExchangeClient tokenExchangeClient;
     private final ObjectMapper objectMapper;
 
-    public Map<String, List<ProductResponse>> listProducts(String token, String search) {
-        accessTokenHolder.setAccessToken(token);
+    public Map<String, List<ProductResponse>> listProducts(BearerTokenAuthentication caller, String search) {
+        String authorization = backendAuthorization(caller, READ_SCOPE);
         try {
-            return Map.of("products", ajApiClient.listProducts(search));
+            return Map.of("products", ajApiClient.listProducts(authorization, search));
         } catch (McpToolException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -39,8 +43,8 @@ public class ProductService {
         }
     }
 
-    public ProductResponse addProduct(String token, Map<String, Object> arguments) {
-        accessTokenHolder.setAccessToken(token);
+    public ProductResponse addProduct(BearerTokenAuthentication caller, Map<String, Object> arguments) {
+        String authorization = backendAuthorization(caller, EDIT_SCOPE);
         try {
             String name = (String) arguments.get("name");
             String description = (String) arguments.get("description");
@@ -54,7 +58,7 @@ public class ProductService {
                     : null;
 
             var request = new CreateProductRequest(name, description, photoUrl, price, sku, categoryId);
-            return ajApiClient.createProduct(request);
+            return ajApiClient.createProduct(authorization, request);
         } catch (McpToolException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -63,11 +67,16 @@ public class ProductService {
         }
     }
 
+    private String backendAuthorization(BearerTokenAuthentication caller, String scope) {
+        String subjectToken = ToolSecurity.requireScope(caller, scope);
+        return "Bearer " + tokenExchangeClient.exchange(subjectToken);
+    }
+
     public McpStatelessServerFeatures.SyncToolSpecification buildToolListProducts() {
         return McpStatelessServerFeatures.SyncToolSpecification.builder()
                 .callHandler((ctx, req) -> {
                     var result = listProducts(
-                            (String) ctx.get(AjMcpApplication.TOKEN_KEY),
+                            ToolSecurity.principal(ctx),
                             (String) req.arguments().get("search"));
                     try {
                         String json = objectMapper.writeValueAsString(result);
@@ -181,7 +190,7 @@ public class ProductService {
         return McpStatelessServerFeatures.SyncToolSpecification.builder()
                 .callHandler((ctx, req) -> {
                     var result = addProduct(
-                            (String) ctx.get(AjMcpApplication.TOKEN_KEY),
+                            ToolSecurity.principal(ctx),
                             req.arguments());
                     try {
                         String json = objectMapper.writeValueAsString(result);

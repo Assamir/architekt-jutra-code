@@ -46,3 +46,6 @@ plugins/*/dist/
 litellm/.env
 .playwright-mcp/
 *.tsbuildinfo
+
+### Local dev secrets (start-dev) ###
+.aj-dev.env

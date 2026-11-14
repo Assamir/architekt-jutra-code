@@ -17,14 +17,15 @@ public class LoggingJsonSchemaValidator implements JsonSchemaValidator {
     @Override
     public ValidationResponse validate(Map<String, Object> schema, Object instance) {
         try {
-            log.info("=== JSON Schema Validation Starting ===");
-            log.debug("Schema: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(schema));
-            log.info("Instance to validate: {}",
-                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(instance));
+            if (log.isDebugEnabled()) {
+                log.debug("Validating {} against schema {}",
+                        instance != null ? instance.getClass().getSimpleName() : "null",
+                        objectMapper.writeValueAsString(schema));
+            }
 
             ValidationResponse response = delegate.validate(schema, instance);
 
-            log.info("=== Validation completed, response: {} ===", response);
+            log.debug("Schema validation completed: valid={}", response.valid());
 
             return response;
         } catch (Exception ex) {

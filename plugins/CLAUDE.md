@@ -40,7 +40,7 @@ import type { Warehouse } from "../domain";
 1. Copy `plugins/warehouse/` as a template
 2. Update `manifest.json` with your plugin's identity and extension points
 3. Update routes in `src/main.tsx` to match manifest paths
-4. Register with the host: `curl -X PUT http://localhost:8080/api/plugins/{pluginId}/manifest -H "Content-Type: application/json" -d @manifest.json`
+4. Register with the host: `curl -X PUT http://localhost:8180/api/plugins/{pluginId}/manifest -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d @manifest.json` (token with `PERMISSION_PLUGIN_MANAGEMENT`)
 5. Run dev server: `npm run dev`
 6. Access via host sidebar or product detail tabs
 
@@ -53,8 +53,8 @@ Plugins must use the host's shared UI stylesheet to maintain visual consistency.
 Add both the SDK and the UI stylesheet in your plugin's `<head>`:
 
 ```html
-<script src="http://localhost:8080/assets/plugin-sdk.js"></script>
-<link rel="stylesheet" href="http://localhost:8080/assets/plugin-ui.css" />
+<script src="http://localhost:8180/assets/plugin-sdk.js"></script>
+<link rel="stylesheet" href="http://localhost:8180/assets/plugin-ui.css" />
 ```
 
 ### Available CSS Classes
@@ -192,7 +192,7 @@ Renders a plugin iframe below the product details card. Your component receives 
 Load in your `index.html` `<head>`:
 
 ```html
-<script src="http://localhost:8080/assets/plugin-sdk.js"></script>
+<script src="http://localhost:8180/assets/plugin-sdk.js"></script>
 ```
 
 Import the shared type declarations in your TypeScript code:
@@ -369,9 +369,11 @@ The host passes context to your plugin via the iframe's URL hash fragment. The S
 1. Start the host: `cd /path/to/project && ./mvnw spring-boot:run`
 2. Start the host frontend (optional, for hot reload): `cd src/main/frontend && npm run dev`
 3. Start your plugin: `cd plugins/my-plugin && npm run dev`
-4. Register manifest once: `curl -X PUT http://localhost:8080/api/plugins/my-plugin/manifest -H "Content-Type: application/json" -d @manifest.json`
+4. Register manifest once: `curl -X PUT http://localhost:8180/api/plugins/my-plugin/manifest -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d @manifest.json`
 5. Access your plugin through the host app (sidebar, product tabs, etc.)
 6. Re-register manifest after changes to extension points
+
+The host runs on `http://localhost:8180` (plugin backends reach it through `HOST_BASE_URL`, default `http://localhost:8180`) and the MCP server on `http://localhost:8181`; configure MCP clients at `http://localhost:8181`.
 
 ## Reference Plugins
 
@@ -405,7 +407,7 @@ The host passes context to your plugin via the iframe's URL hash fragment. The S
 - Cross-plugin read: the product tab reads box-size dimensions from `hostApp.getProduct(productId)` (`pluginData["box-size"]`) for a rotation-aware size warning, and re-fetches the product and both lists on window `focus` / `visibilitychange` while keeping unsaved ticks
 - Write controls gated by a local `canEdit(token)` that base64url-decodes the JWT from `hostApp.getToken()` and checks the `permissions` claim for `EDIT` (the backend still enforces EDIT with 403)
 - Sidebar page (`menu.main`, icon `truck`) for carriers/methods and a product detail tab (`product.detail.tabs`) for restrictions
-- Manual registration with a `PERMISSION_PLUGIN_MANAGEMENT` token: `curl -X PUT http://localhost:8080/api/plugins/shipping/manifest -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d @manifest.json`
+- Manual registration with a `PERMISSION_PLUGIN_MANAGEMENT` token: `curl -X PUT http://localhost:8180/api/plugins/shipping/manifest -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d @manifest.json`
 
 ### AI Offer Analysis Plugin
 

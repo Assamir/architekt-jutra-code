@@ -16,7 +16,7 @@ Prerequisites: JDK 25, Docker (Postgres, TestContainers, and jOOQ codegen all ne
 ./start-dev.ps1               # Windows PowerShell
 
 # Host app only (needs Postgres from `docker compose up -d`; spring-boot-docker-compose can also start it)
-./mvnw spring-boot:run        # http://localhost:8080
+./mvnw spring-boot:run        # http://localhost:8180
 
 # Backend tests (integration tests use TestContainers with real PostgreSQL 18)
 ./mvnw test
@@ -30,7 +30,7 @@ Every Maven build (including `test`) runs two expensive steps in `generate-sourc
 
 Host frontend (`src/main/frontend`, React 19 + Chakra UI v3 + Vite):
 ```bash
-npm run dev          # Vite dev server, proxies /api to :8080
+npm run dev          # Vite dev server, proxies /api to :8180
 npm run build        # app + plugin SDK bundle (vite.sdk.config.ts → static/assets/plugin-sdk.js)
 npm run lint
 npm test             # vitest run; single file: npx vitest run src/test/pages.test.tsx
@@ -38,14 +38,16 @@ npm test             # vitest run; single file: npx vitest run src/test/pages.te
 
 Plugins (`plugins/<name>`): `npm run dev`. `warehouse` (:3001), `box-size` (:3002) and `shipping` (:3010) are Vite apps; `ai-description` (:3003) is Next.js + BAML (`npm run generate` regenerates `baml_client`; tests via Jest) and needs `plugins/ai-description/.env` plus `litellm/.env` (copy from `.env.example`). `ai-offer-analysis` (:3011) is also Next.js + BAML (tests via Jest, `npm test`) and needs `plugins/ai-offer-analysis/.env` plus `litellm/.env`; see `plugins/ai-offer-analysis/README.md` for registration and the LiteLLM verification procedure.
 
-MCP server (`mcp-server/`, own Maven wrapper, port 8081): `cd mcp-server && ./mvnw spring-boot:run` / `./mvnw test`.
+MCP server (`mcp-server/`, own Maven wrapper, port 8181, management 9181): `cd mcp-server && ./mvnw spring-boot:run` / `./mvnw test`. It refuses to start without `AJ_OAUTH_CLIENT_SECRET`.
+
+`start-dev` wires the OAuth settings both apps share: it exports `APP_OAUTH2_ISSUER`, `AJ_OAUTH_SERVER_URL`, `AJ_BACKEND_URL`, `AJ_MCP_BASE_URL` and `AJ_OAUTH_CLIENT_ID`, takes `AJ_OAUTH_CLIENT_SECRET` from the environment, else from the gitignored `.aj-dev.env` in the repo root, else generates it once and stores it there (never printed), passes it only to the host and MCP processes (not to plugins), and inherits `APP_JWT_SECRET` (never generates it). When you start the host and the MCP server by hand, export the same `AJ_OAUTH_CLIENT_SECRET` in both shells (reuse the value from `.aj-dev.env`): the host provisions the `aj-mcp-server` client from it at startup, and a mismatch fails closed — the host answers `401 invalid_client`, which the MCP client sees as a 5xx (introspection) or a tool error (token exchange).
 
 ## Architecture
 
 ### Host backend (`src/main/java/pl/devstyle/aj`)
 - `core/plugin` — the microkernel. Plugins are registered by uploading a manifest (`PUT /api/plugins/{id}/manifest`, stored as `PluginDescriptor`). Plugins persist data two ways: per-product JSONB under `products.plugin_data -> {pluginId}` (`PluginDataService`), and plugin-owned collections in `plugin_objects` keyed by `(pluginId, objectType, objectId)` with optional entity binding to PRODUCT/CATEGORY (`PluginObjectService`). JSONB filtering (`jsonPath:op:value`) is done in jOOQ query services (`Db*QueryService`).
-- `core/security` — stateless JWT auth (`JwtAuthenticationFilter`, `JwtTokenProvider`). **All authorization rules live in `SecurityConfiguration`** as `requestMatchers` on `PERMISSION_*` authorities (READ, EDIT, PLUGIN_MANAGEMENT, plus `mcp:read`/`mcp:edit` for MCP tokens) — add new endpoints there, not with `@PreAuthorize`.
-- `core/oauth2` — the host is also an OAuth2 authorization server (dynamic client registration, token, introspection, `.well-known` metadata) used by the MCP server.
+- `core/security` — stateless JWT auth (`JwtAuthenticationFilter`, `JwtTokenProvider`). Every host JWT carries the fixed issuer `app.oauth2.issuer` (`APP_OAUTH2_ISSUER`, default `http://localhost:8180`) and an `aud`; `/api` accepts only tokens whose `aud` contains `${issuer}/api` (login session tokens, and exchanged tokens minted for the MCP server). Session tokens map their `permissions` claim to authorities, delegated OAuth tokens their `scopes`. **All authorization rules live in `SecurityConfiguration`** as `requestMatchers` on `PERMISSION_*` authorities (READ, EDIT, PLUGIN_MANAGEMENT, plus `mcp:read`/`mcp:edit` for exchanged MCP tokens) — add new endpoints there, not with `@PreAuthorize`. CORS origins come from `APP_CORS_ALLOWED_ORIGINS` (default `http://localhost:*`).
+- `core/oauth2` — the host is also an OAuth2 authorization server used by the MCP server: dynamic client registration, `/oauth2/authorize` (session tokens only, RFC 8707 `resource`, a missing resource means the MCP server), `/oauth2/token` (authorization code + PKCE, refresh tokens bound to client and resource, and RFC 8693 token exchange only for the `aj-mcp-server` client), RFC 7662 `/oauth2/introspect` (client authentication required, `active` only for tokens whose `aud` contains the caller's resource) and `.well-known` metadata built from the configured issuer. Granted scopes are `mcp:read`/`mcp:edit`, with `mcp:edit` implying `mcp:read`, intersected with the user's permissions. `McpClientProvisioner` upserts the `aj-mcp-server` client from `AJ_OAUTH_CLIENT_ID`/`AJ_OAUTH_CLIENT_SECRET` at startup (a blank secret removes the stale row and logs a WARN). Tokens, codes and secrets are never logged. Unexpected OAuth errors are logged at ERROR with `error_type` only; to get their stack traces set `logging.level.pl.devstyle.aj.core.oauth2=DEBUG` (env `LOGGING_LEVEL_PL_DEVSTYLE_AJ_CORE_OAUTH2=DEBUG`).
 - `product`, `category`, `user`, `api` — domain modules: JPA for CRUD, jOOQ for complex reads.
 - `footprint` — a self-contained hexagonal module: public `api` (`FootprintFacade`), `internal` implementation with `ports`, `spi/stub` in-memory adapters activated by `app.footprint.adapters=in-memory`, async audit via events + spring-retry, CSV export. Keep callers on `api` only.
 - `archetype/pricing` — pricing archetype domain model (components, calculators, validity).
@@ -57,7 +59,7 @@ MCP server (`mcp-server/`, own Maven wrapper, port 8081): `cd mcp-server && ./mv
 - **Read `plugins/CLAUDE.md` before touching plugins** — it defines manifest format, extension points, SDK API, storage patterns, and the mandatory `plugin-ui.css` (`tc-*` classes) styling rules. Note: manifest upload requires a token with `PERMISSION_PLUGIN_MANAGEMENT`.
 
 ### MCP server (`mcp-server/`)
-Separate Spring Boot app exposing aj products/categories as MCP tools. It validates incoming bearer tokens (JWT or introspection against the host's OAuth2 server), exchanges them, and calls the host REST API via `AjApiClient` (`AJ_BACKEND_URL`, default `http://localhost:8080`).
+Separate Spring Boot app (OAuth2 resource server) exposing aj products/categories as MCP tools. It validates bearer tokens via RFC 7662 introspection against the host (audience = its own URL, `AJ_MCP_BASE_URL`), exchanges them via RFC 8693 for a ≤5-min host-API token on every tool call, and never forwards the client token; it needs `AJ_OAUTH_CLIENT_ID`/`AJ_OAUTH_CLIENT_SECRET`. It calls the host REST API via `AjApiClient` (`AJ_BACKEND_URL`, default `http://localhost:8180`). Configure MCP clients at `http://localhost:8181`.
 
 ### Docker Compose (`compose.yml`)
 Besides the app's Postgres, it runs the AI tooling for `ai-description` and `ai-offer-analysis`: LiteLLM (LLM gateway, config in `litellm/`), Langfuse (+ ClickHouse, MinIO, Redis), and Presidio (PII anonymization).
@@ -74,8 +76,6 @@ Read @.maister/docs/INDEX.md before starting any task. It indexes the project's 
 - Project vision, tech stack, and architecture decisions
 
 Follow standards in `.maister/docs/standards/` when writing code — they represent team decisions. If standards conflict with the task, ask the user.
-
-Note: `.maister/docs/project/architecture.md` still describes the pre-alpha scaffolding phase and is out of date; trust the code and the Architecture section above.
 
 ### Standards Evolution
 

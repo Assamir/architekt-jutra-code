@@ -24,7 +24,8 @@ The repository also contains course material (`week7/`–`week10/`, `tools/`) th
 
 ### Security
 - **Location**: `core/security`, `core/oauth2`
-- **Purpose**: stateless JWT auth (`JwtAuthenticationFilter`, `JwtTokenProvider`); all authorization rules centralized in `SecurityConfiguration` on `PERMISSION_*` authorities (READ, EDIT, PLUGIN_MANAGEMENT) plus `mcp:read`/`mcp:edit`. The host is also an OAuth2 authorization server (dynamic client registration, token, introspection, `.well-known` metadata) used by the MCP server.
+- **Purpose (`core/security`)**: stateless JWT auth (`JwtAuthenticationFilter`, `JwtTokenProvider`). Every JWT carries the fixed issuer `app.oauth2.issuer` and an `aud`; `/api` accepts only tokens whose `aud` contains `${issuer}/api` (login session tokens and exchanged MCP tokens). Session tokens map `permissions`, delegated OAuth tokens map `scopes` to authorities. All authorization rules are centralized in `SecurityConfiguration` on `PERMISSION_*` authorities (READ, EDIT, PLUGIN_MANAGEMENT) plus `mcp:read`/`mcp:edit`.
+- **Purpose (`core/oauth2`)**: the host is the OAuth2 authorization server for the MCP server: dynamic client registration, `/oauth2/authorize` (session tokens only, RFC 8707 `resource`, `mcp:edit` ⊃ `mcp:read` intersected with the user's permissions), `/oauth2/token` (authorization code + PKCE, refresh tokens bound to client and resource, RFC 8693 token exchange for the `aj-mcp-server` client only), RFC 7662 `/oauth2/introspect` (client authentication via `ClientAuthenticator`, Basic or form post) and `.well-known` metadata advertising the introspection endpoint and the token-exchange grant. `McpClientProvisioner` upserts the `aj-mcp-server` client from `AJ_OAUTH_CLIENT_ID`/`AJ_OAUTH_CLIENT_SECRET` at startup.
 
 ### Domain modules
 - **Location**: `product`, `category`, `user`, `api`
@@ -46,11 +47,11 @@ The repository also contains course material (`week7/`–`week10/`, `tools/`) th
 - Plugin conventions (manifest, SDK, `plugin-ui.css` `tc-*` styling): `plugins/CLAUDE.md`
 
 ### Plugins
-- **Location**: `plugins/<name>` — `warehouse` (:3001), `box-size` (:3002), `ai-description` (:3003, Next.js + BAML)
+- **Location**: `plugins/<name>` — `warehouse` (:3001), `box-size` (:3002), `ai-description` (:3003, Next.js + BAML), `shipping` (:3010), `ai-offer-analysis` (:3011, Next.js + BAML)
 
 ### MCP server
-- **Location**: `mcp-server/` (port 8081)
-- **Purpose**: exposes products/categories as MCP tools; validates bearer tokens (JWT or introspection against the host AS), exchanges them and calls the host REST API via `AjApiClient` (`AJ_BACKEND_URL`)
+- **Location**: `mcp-server/` (port 8181, management 9181)
+- **Purpose**: exposes products/categories as MCP tools. It is an OAuth2 resource server: it validates bearer tokens by RFC 7662 introspection against the host, requiring `aud` to contain its own URL (`AJ_MCP_BASE_URL`), checks the tool's scope, exchanges the client token via RFC 8693 for a ≤5-min host-API token on every tool call (no cache) and calls the host REST API via `AjApiClient` (`AJ_BACKEND_URL`). The client token is never forwarded. Protected resource metadata is served by Spring Security's `OAuth2ProtectedResourceMetadataFilter`.
 
 ## Data Flow
 
@@ -61,25 +62,28 @@ Browser ── host React app ──REST+JWT──▶ Spring host ──▶ Post
               ▼  │
           Plugin UI (:300x) ──(optional) plugin backend ──server-sdk, user JWT──▶ host REST
 
-AI agent ──MCP──▶ mcp-server (:8081) ──token exchange (OAuth2 AS on host)──▶ host REST
+AI agent ──MCP + T1──▶ mcp-server (:8181) ──introspect T1──▶ host /oauth2/introspect
+                              │            ──exchange T1───▶ host /oauth2/token → T2 (aud ${issuer}/api, ≤5 min)
+                              └──REST + T2──▶ host /api
 ```
 
 ## External Integrations
 - PostgreSQL 18 (application data)
-- LiteLLM gateway, Langfuse tracing, Presidio PII anonymization — used by `ai-description`
+- LiteLLM gateway, Langfuse tracing, Presidio PII anonymization — used by `ai-description` and `ai-offer-analysis`
 
 ## Database Schema
 - Liquibase changelogs: `src/main/resources/db/changelog/2026/` (categories, products, plugins, plugin_data, plugin_objects + entity binding, users, OAuth2 registered clients, footprint audit log), included from `db.changelog-master.yaml`
 - jOOQ generated sources: `target/generated-sources/jooq`
 
 ## Configuration
-- `src/main/resources/application.properties`
-- Environment variables for MCP server (`AJ_BACKEND_URL`) and plugins (`.env` in `plugins/ai-description`, `litellm/`)
+- `src/main/resources/application.properties` (host, port 8180): `APP_OAUTH2_ISSUER` (default `http://localhost:8180`), `APP_JWT_SECRET` (committed dev fallback), `APP_CORS_ALLOWED_ORIGINS` (default `http://localhost:*`), and the values shared with the MCP server: `AJ_MCP_BASE_URL`, `AJ_OAUTH_CLIENT_ID`, `AJ_OAUTH_CLIENT_SECRET`
+- `mcp-server/src/main/resources/application.yml` (port 8181, management 9181): `AJ_BACKEND_URL`, `AJ_OAUTH_SERVER_URL` (default `http://localhost:8180`), `AJ_MCP_BASE_URL` (default `http://localhost:8181`), `AJ_OAUTH_CLIENT_ID`, `AJ_OAUTH_CLIENT_SECRET` (required; startup fails without it)
+- Plugins: `.env` in `plugins/ai-description`, `plugins/ai-offer-analysis` (optional `HOST_BASE_URL`, default `http://localhost:8180`) and `litellm/`
 
 ## Deployment Architecture
-- Local only: `compose.yml` for infrastructure, `start-dev.sh`/`start-dev.ps1` for all processes
+- Local only: `compose.yml` for infrastructure, `start-dev.sh`/`start-dev.ps1` for all processes; the scripts export the shared OAuth variables; `AJ_OAUTH_CLIENT_SECRET` comes from the environment, else from the gitignored `.aj-dev.env` (generated once and reused across restarts), and is passed only to the host and MCP processes, never to plugins
 - Host serves the built frontend from `src/main/resources/static`
 - No CI/CD or production deployment configured
 
 ---
-*Based on codebase analysis performed 2026-11-07*
+*Based on codebase analysis performed 2026-11-07; security, OAuth2 and MCP sections updated 2026-11-14*

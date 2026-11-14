@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box, Button, Flex, Heading, Spinner, Text } from "@chakra-ui/react";
+import { useAuth } from "../auth/AuthContext";
 
 const scopeDescriptions: Record<string, { title: string; description: string }> = {
   "mcp:read": {
@@ -15,9 +16,25 @@ const scopeDescriptions: Record<string, { title: string; description: string }> 
 
 const ALWAYS_SELECTED_SCOPES = new Set(["mcp:read"]);
 
+const PERMISSION_SCOPES: Record<string, string> = {
+  READ: "mcp:read",
+  EDIT: "mcp:edit",
+};
+
+function grantableScopes(requested: string[], clientScopes: string[], permissions: string[]): string[] {
+  const effective = requested.length > 0
+    ? requested.filter((s) => clientScopes.includes(s))
+    : clientScopes;
+  const expanded = new Set(effective);
+  if (expanded.has("mcp:edit")) expanded.add("mcp:read");
+  const permitted = new Set(permissions.map((p) => PERMISSION_SCOPES[p]));
+  return Object.keys(scopeDescriptions).filter((s) => expanded.has(s) && permitted.has(s));
+}
+
 export function OAuth2AuthorizePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { permissions } = useAuth();
   const [clientName, setClientName] = useState("Application");
   const [availableScopes, setAvailableScopes] = useState<string[]>([]);
   const [selectedScopes, setSelectedScopes] = useState<Record<string, boolean>>({});
@@ -32,6 +49,7 @@ export function OAuth2AuthorizePage() {
   const state = searchParams.get("state") || "";
   const codeChallenge = searchParams.get("code_challenge") || "";
   const codeChallengeMethod = searchParams.get("code_challenge_method") || "";
+  const resource = searchParams.get("resource") || "";
 
   useEffect(() => {
     if (fetched.current || !clientId) return;
@@ -46,19 +64,20 @@ export function OAuth2AuthorizePage() {
         setClientName(data.client_name || "Application");
         const clientScopes: string[] = data.scopes || [];
         const requestedScopes = scope.split(" ").filter(Boolean);
-        const effective = requestedScopes.length > 0
-          ? requestedScopes.filter((s: string) => clientScopes.includes(s))
-          : clientScopes;
-        setAvailableScopes(effective);
+        const offered = grantableScopes(requestedScopes, clientScopes, permissions);
+        if (offered.length === 0) {
+          setError("You do not have permission to grant the requested access");
+        }
+        setAvailableScopes(offered);
         const initial: Record<string, boolean> = {};
-        effective.forEach((s: string) => {
-          initial[s] = ALWAYS_SELECTED_SCOPES.has(s) ? true : false;
+        offered.forEach((s) => {
+          initial[s] = ALWAYS_SELECTED_SCOPES.has(s);
         });
         setSelectedScopes(initial);
       })
       .catch(() => setError("Failed to load client information"))
       .finally(() => setLoading(false));
-  }, [clientId, scope]);
+  }, [clientId, scope, permissions]);
 
   const atLeastOneSelected = availableScopes.some((s) => selectedScopes[s]);
 
@@ -104,6 +123,7 @@ export function OAuth2AuthorizePage() {
           {state && <input type="hidden" name="state" value={state} />}
           {codeChallenge && <input type="hidden" name="code_challenge" value={codeChallenge} />}
           {codeChallengeMethod && <input type="hidden" name="code_challenge_method" value={codeChallengeMethod} />}
+          {resource && <input type="hidden" name="resource" value={resource} />}
 
           <Heading as="h1" fontSize="20px" fontWeight="700" color="#0F172A" mb="8px" textAlign="center">
             {clientName}

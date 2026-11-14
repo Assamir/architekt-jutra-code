@@ -70,6 +70,14 @@ function renderWithProviders(ui: React.ReactElement, initialRoute = "/") {
   );
 }
 
+// AuthContext reads the stored token when the module loads, so tests that seed localStorage need a fresh copy
+async function loadFreshAuthModule() {
+  vi.resetModules();
+  const actual = await vi.importActual<typeof import("../auth/AuthContext")>("../auth/AuthContext");
+  RealAuthProvider = actual.AuthProvider;
+  realUseAuth = actual.useAuth;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   localStorage.clear();
@@ -162,9 +170,11 @@ describe("LoginPage", () => {
 describe("AuthContext", () => {
   it("provides token/permissions/login/logout via useAuth hook", async () => {
     // Create a valid JWT
-    const payload = btoa(JSON.stringify({ sub: "testuser", permissions: ["EDIT", "PLUGIN_MANAGEMENT"], exp: Math.floor(Date.now() / 1000) + 3600 }));
+    const payload = btoa(JSON.stringify({ sub: "testuser", permissions: ["EDIT", "PLUGIN_MANAGEMENT"], aud: ["http://localhost:8180/api"], exp: Math.floor(Date.now() / 1000) + 3600 }));
     const mockToken = `eyJhbGciOiJIUzI1NiJ9.${payload}.signature`;
     localStorage.setItem("auth_token", mockToken);
+
+    await loadFreshAuthModule();
 
     // Use the real implementation by delegating to saved reference
     mockUseAuth.mockImplementation(realUseAuth);
@@ -198,6 +208,36 @@ describe("AuthContext", () => {
     await waitFor(() => {
       expect(screen.getByTestId("token")).toHaveTextContent("none");
     });
+  });
+
+  it("drops a stored token without aud claim", async () => {
+    const payload = btoa(JSON.stringify({ sub: "testuser", permissions: ["EDIT"], exp: Math.floor(Date.now() / 1000) + 3600 }));
+    localStorage.setItem("auth_token", `eyJhbGciOiJIUzI1NiJ9.${payload}.signature`);
+
+    await loadFreshAuthModule();
+    mockUseAuth.mockImplementation(realUseAuth);
+
+    function TestConsumer() {
+      const { token, permissions } = mockUseAuth();
+      return (
+        <div>
+          <span data-testid="token">{token ?? "none"}</span>
+          <span data-testid="permissions">{permissions.join(",")}</span>
+        </div>
+      );
+    }
+
+    render(
+      <ChakraProvider value={system}>
+        <RealAuthProvider>
+          <TestConsumer />
+        </RealAuthProvider>
+      </ChakraProvider>,
+    );
+
+    expect(screen.getByTestId("token")).toHaveTextContent("none");
+    expect(screen.getByTestId("permissions")).toBeEmptyDOMElement();
+    expect(localStorage.getItem("auth_token")).toBeNull();
   });
 });
 

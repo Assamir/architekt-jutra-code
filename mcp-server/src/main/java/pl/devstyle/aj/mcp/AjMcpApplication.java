@@ -10,11 +10,14 @@ import io.modelcontextprotocol.server.transport.WebMvcStatelessServerTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import pl.devstyle.aj.mcp.config.JacksonMcpJsonMapper;
 import pl.devstyle.aj.mcp.config.LoggingJsonSchemaValidator;
+import pl.devstyle.aj.mcp.security.ToolSecurity;
 import pl.devstyle.aj.mcp.service.CategoryService;
 import pl.devstyle.aj.mcp.service.ProductService;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.web.servlet.function.RouterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
@@ -32,17 +35,15 @@ public class AjMcpApplication {
         return new JacksonMcpJsonMapper(objectMapper);
     }
 
-    public static final String TOKEN_KEY = "bearer_token";
-
     @Bean
     WebMvcStatelessServerTransport webMvcStatelessServerTransport(McpJsonMapper mcpJsonMapper) {
         return WebMvcStatelessServerTransport.builder()
                 .jsonMapper(mcpJsonMapper)
                 .messageEndpoint("/")
                 .contextExtractor(request -> {
-                    String auth = request.headers().firstHeader("Authorization");
-                    if (auth != null && auth.startsWith("Bearer ")) {
-                        return McpTransportContext.create(Map.of(TOKEN_KEY, auth.substring("Bearer ".length())));
+                    var authentication = SecurityContextHolder.getContext().getAuthentication();
+                    if (authentication instanceof BearerTokenAuthentication caller) {
+                        return McpTransportContext.create(Map.of(ToolSecurity.AUTHENTICATION_KEY, caller));
                     }
                     return McpTransportContext.EMPTY;
                 })

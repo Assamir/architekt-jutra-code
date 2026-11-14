@@ -1,0 +1,2 @@
+ca5b084e7a22c663d13851192e7302f45356e9d8e8ebf7ad7089636c32aba543  src/test/java/pl/devstyle/aj/core/oauth2/McpTokenBoundaryTests.java
+5fb1ef79fc558649709e10bfda35f6e121bb18f0e156d9129948942359918980  mcp-server/src/test/java/pl/devstyle/aj/mcp/security/McpAuthBoundaryTests.java

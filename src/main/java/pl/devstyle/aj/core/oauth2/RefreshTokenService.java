@@ -8,7 +8,6 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -20,32 +19,43 @@ public class RefreshTokenService {
 
     private final ConcurrentHashMap<String, RefreshTokenData> refreshTokens = new ConcurrentHashMap<>();
 
-    public String issueToken(String username, Set<String> permissions, String scope) {
+    public String issueToken(String username, String scope, String clientId, String resource) {
         var token = generateToken();
-        var data = new RefreshTokenData(username, permissions, scope, Instant.now());
-        refreshTokens.put(token, data);
-        log.debug("Issued refresh token for user: {}", username);
+        refreshTokens.put(token, new RefreshTokenData(username, scope, clientId, resource, Instant.now()));
+        log.debug("Issued refresh token | client_id={} | user={}", clientId, username);
         return token;
     }
 
-    public Optional<RotationResult> consumeAndRotate(String token) {
-        var data = refreshTokens.remove(token);
+    /**
+     * Rotates a refresh token for the client it was issued to. The token is removed only after the client and the
+     * optional resource match, so a mismatching caller cannot revoke it for its owner.
+     */
+    public Optional<RotationResult> consumeAndRotate(String token, String clientId, Optional<String> resource) {
+        var data = refreshTokens.get(token);
         if (data == null) {
-            log.warn("Refresh token consumption failed | reason=Token not found or already used");
+            log.warn("Refresh token rejected | client_id={} | reason=Token not found or already used", clientId);
             return Optional.empty();
         }
-
         if (data.createdAt().plusSeconds(TOKEN_EXPIRATION_SECONDS).isBefore(Instant.now())) {
-            log.warn("Refresh token consumption failed | user={} | reason=Token expired", data.username());
+            refreshTokens.remove(token, data);
+            log.warn("Refresh token rejected | client_id={} | user={} | reason=Token expired", clientId, data.username());
+            return Optional.empty();
+        }
+        if (!data.clientId().equals(clientId)) {
+            log.warn("Refresh token rejected | client_id={} | reason=Token issued to another client", clientId);
+            return Optional.empty();
+        }
+        if (resource.isPresent() && !resource.get().equals(data.resource())) {
+            log.warn("Refresh token rejected | client_id={} | resource={} | reason=Resource mismatch",
+                    clientId, resource.get());
+            return Optional.empty();
+        }
+        if (!refreshTokens.remove(token, data)) {
+            log.warn("Refresh token rejected | client_id={} | reason=Token already used", clientId);
             return Optional.empty();
         }
 
-        // Issue new refresh token (rotation)
-        var newToken = generateToken();
-        var newData = new RefreshTokenData(data.username(), data.permissions(), data.scope(), Instant.now());
-        refreshTokens.put(newToken, newData);
-
-        log.debug("Rotated refresh token for user: {}", data.username());
+        var newToken = issueToken(data.username(), data.scope(), data.clientId(), data.resource());
         return Optional.of(new RotationResult(newToken, data));
     }
 
@@ -74,8 +84,9 @@ public class RefreshTokenService {
 
     public record RefreshTokenData(
             String username,
-            Set<String> permissions,
             String scope,
+            String clientId,
+            String resource,
             Instant createdAt
     ) {}
 
