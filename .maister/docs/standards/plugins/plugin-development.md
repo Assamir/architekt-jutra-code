@@ -23,7 +23,7 @@ Source: plugins/CLAUDE.md, plugins/*/package.json, start-dev.sh, plugins/ai-desc
 Every plugin loads the host's `plugin-ui.css` (and `plugin-sdk.js`) in `<head>` and styles standard UI with the shared `tc-*` classes so it matches the host: root wrapper `tc-plugin`, `tc-primary-button` for all primary actions (matches the host `PrimaryButton`), `tc-ghost-button` / `tc-ghost-button--danger`, `tc-input`, `tc-select`, `tc-table`, `tc-badge--success` / `--danger`, `tc-card`, `tc-section`, `tc-flex`, `tc-error`. Never redefine button, table or input styles inline; inline `style` is only for layout (padding, margins, max-width). Small `product.detail.info` badges may skip the `tc-plugin` root.
 
 ```tsx
-<link rel="stylesheet" href="http://localhost:8080/assets/plugin-ui.css" />
+<link rel="stylesheet" href="http://localhost:8180/assets/plugin-ui.css" />
 <div className="tc-plugin" style={{ padding: "1rem" }}>
   <button className="tc-primary-button">Save</button>
 </div>
@@ -53,7 +53,7 @@ Source: plugins/CLAUDE.md, CLAUDE.md, plugins/warehouse/src/pages/WarehousePage.
 
 ### Fixed Dev Ports
 
-Every service has a fixed, unique local port: host 8080, MCP server 8081 (management 9081), warehouse 3001, box-size 3002, ai-description 3003, shipping 3010, ai-offer-analysis 3011. Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, ai-offer-analysis 3011, next business module 3012). A new plugin takes the next free port in its range and must always run there, because the manifest `url` is `http://localhost:<port>`. Vite plugins set `server.port` with `strictPort: true` so a clash fails instead of silently moving; Next.js plugins pass `-p <port>` to both `dev` and `start`. Avoid ports used by Compose services (3100 Langfuse, 4000 LiteLLM).
+Every service has a fixed, unique local port: host 8180, MCP server 8181 (management 9181), warehouse 3001, box-size 3002, ai-description 3003, shipping 3010, ai-offer-analysis 3011. Port rule: existing plugins use 3001–3003, 3004–3009 are for small demo and utility plugins, and 3010+ is for business modules (shipping 3010, ai-offer-analysis 3011, next business module 3012). A new plugin takes the next free port in its range and must always run there, because the manifest `url` is `http://localhost:<port>`. Vite plugins set `server.port` with `strictPort: true` so a clash fails instead of silently moving; Next.js plugins pass `-p <port>` to both `dev` and `start`. Avoid ports used by Compose services (3100 Langfuse, 4000 LiteLLM).
 
 ```typescript
 server: { port: 3012, strictPort: true } // new business-module plugin vite.config.ts

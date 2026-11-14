@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -25,18 +26,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         var token = extractToken(request);
 
         if (token != null) {
-            jwtTokenProvider.parseToken(token).ifPresent(parsed -> {
-                var authorities = parsed.permissions().stream()
-                        .map(p -> new SimpleGrantedAuthority("PERMISSION_" + p))
+            jwtTokenProvider.parseApiToken(token).ifPresent(parsed -> {
+                var authorities = grantedRights(parsed).stream()
+                        .map(right -> new SimpleGrantedAuthority("PERMISSION_" + right))
                         .toList();
 
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        parsed.username(), null, authorities);
+                        parsed.subject(), null, authorities);
+                authentication.setDetails(parsed);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             });
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private static Set<String> grantedRights(JwtTokenProvider.ParsedToken parsed) {
+        if (parsed.isSessionToken()) {
+            return parsed.permissions();
+        }
+        return parsed.clientId() != null ? parsed.scopes() : Set.of();
     }
 
     private String extractToken(HttpServletRequest request) {

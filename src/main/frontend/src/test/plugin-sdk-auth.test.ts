@@ -74,7 +74,7 @@ describe("Plugin SDK Auth", () => {
       );
 
       const { createServerSDK } = await import("../../../../../plugins/server-sdk");
-      const sdk = createServerSDK("test-plugin", "http://localhost:8080", { headers: { authorization: "Bearer my-jwt-token" } });
+      const sdk = createServerSDK("test-plugin", "http://localhost:8180", { headers: { authorization: "Bearer my-jwt-token" } });
 
       await sdk.hostApp.getProducts();
 
@@ -99,24 +99,24 @@ describe("Plugin SDK Auth", () => {
       );
 
       const { createServerSDK } = await import("../../../../../plugins/server-sdk");
-      const sdk = createServerSDK("my-plugin", "http://localhost:8080");
+      const sdk = createServerSDK("my-plugin", "http://localhost:8180");
 
       // Test getData URL
       await sdk.thisPlugin.getData("42");
       expect(fetchSpy.mock.calls[0][0]).toBe(
-        "http://localhost:8080/api/plugins/my-plugin/products/42/data",
+        "http://localhost:8180/api/plugins/my-plugin/products/42/data",
       );
 
       // Test setData URL
       await sdk.thisPlugin.setData("42", { stock: true });
       expect(fetchSpy.mock.calls[1][0]).toBe(
-        "http://localhost:8080/api/plugins/my-plugin/products/42/data",
+        "http://localhost:8180/api/plugins/my-plugin/products/42/data",
       );
 
       // Test removeData URL
       await sdk.thisPlugin.removeData("42");
       expect(fetchSpy.mock.calls[2][0]).toBe(
-        "http://localhost:8080/api/plugins/my-plugin/products/42/data",
+        "http://localhost:8180/api/plugins/my-plugin/products/42/data",
       );
 
       fetchSpy.mockRestore();

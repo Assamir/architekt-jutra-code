@@ -2,7 +2,7 @@
  * TomorrowCommerce Plugin UI
  * Shared styles for plugins to match the host app look and feel.
  * Load in your plugin's <head>:
- *   <link rel="stylesheet" href="http://localhost:8080/assets/plugin-ui.css" />
+ *   <link rel="stylesheet" href="http://localhost:8180/assets/plugin-ui.css" />
  */
 
 /* ── Base Reset ── */

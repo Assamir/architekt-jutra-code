@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Log — MCP auth refactor</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+/* extensions */
+header .meta { color:var(--dim); font-size:13px; }
+.tldr ul { margin:6px 0 10px 18px; padding:0; }
+.tldr h3 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:14px 0 4px; }
+.adr h2 { margin:0 0 6px; font-size:16px; }
+.adr .st { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; padding:1.5px 8px;
+  border-radius:99px; background:var(--ok-soft); color:var(--ok); margin-right:8px; vertical-align:middle; }
+.adr .area { color:var(--dim); font-size:12.5px; }
+.lbl { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); margin:12px 0 4px; }
+.adr ul, .adr ol { margin:4px 0 4px 18px; padding:0; }
+.opts li.chosen { font-weight:650; color:var(--accent); }
+.outcome { background:var(--accent-soft); border-radius:8px; padding:8px 12px; margin:8px 0; }
+.cons { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width:700px) { .cons { grid-template-columns:1fr; } }
+.good { border-left:3px solid var(--ok); padding-left:10px; }
+.bad { border-left:3px solid var(--warn); padding-left:10px; }
+.idx td:first-child { white-space:nowrap; }
+</style>
+</head>
+<body>
+<nav class="crumbs">
+  <a href="../dashboard.html">&larr; Dashboard</a>
+  <a href="research-report.html">Report</a>
+  <a href="solution-exploration.html">Exploration</a>
+  <a href="high-level-design.html">Design</a>
+  <span class="here">Decision Log</span>
+  <a href="decision-log.md" target="_blank" rel="noopener" class="md">md twin &#8599;</a>
+</nav>
+
+<header>
+  <span class="badge">Decision log (MADR)</span>
+  <h1>Decision Log: MCP auth refactor (no token passthrough)</h1>
+  <div class="meta">Research task 2026-11-14-mcp-auth-refactor &middot; package P1 &middot; generated 2026-11-14</div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b>9</b><span>ADRs</span></div>
+  <div class="tile"><b class="pass">9</b><span>accepted</span></div>
+  <div class="tile"><b>0</b><span>superseded</span></div>
+  <div class="tile"><b>8</b><span>decision areas covered</span></div>
+</div>
+
+<section class="card tldr">
+  <h3>TL;DR</h3>
+  <ul>
+    <li>9 ADRs, all <b>Accepted</b>. ADR-001 records the overall direction (validate-then-exchange). ADR-002&hellip;009 record one decision area each (DA-1&hellip;DA-8) of package P1.</li>
+    <li>Most consequential: <a href="#adr-003">ADR-003</a> (only exchange mints the host-API audience), <a href="#adr-004">ADR-004</a> (scopes &cap; permissions at both grants), <a href="#adr-006">ADR-006</a> (introspection with no cache and HS256: the MCP server never holds a key).</li>
+    <li>Each ADR links back to its alternatives in <a href="solution-exploration.html">solution exploration</a> and to the <a href="high-level-design.html">design</a>.</li>
+  </ul>
+  <h3>Open Questions / Risks</h3>
+  <ul>
+    <li><span class="sev warning">warning</span>ADR-002 depends on the <code>resource</code> value real clients send (unverified). Exact match only.</li>
+    <li><span class="sev warning">warning</span>ADR-005 depends on the <code>contextExtractor</code> seeing the post-filter <code>SecurityContext</code>. Spike first. Fallback: <code>immediateExecution(true)</code>.</li>
+    <li><span class="sev info">info</span>ADR-004 makes the issued <code>scope</code> differ from the requested one (legal, client handling unverified).</li>
+  </ul>
+</section>
+
+<div class="card">
+<table class="idx">
+<tr><th>ADR</th><th>Decision</th><th>Area</th><th>Status</th></tr>
+<tr><td><a href="#adr-001">ADR-001</a></td><td>Validate-then-exchange replaces token passthrough</td><td>Overall</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-002">ADR-002</a></td><td>URI audiences with a lenient default</td><td>DA-1 &rarr; 1A</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-003">ADR-003</a></td><td><code>/api</code> audience gate + per-grant resource policy</td><td>DA-2 &rarr; 2B</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-004">ADR-004</a></td><td>Hierarchical <code>mcp:*</code>, normalised, kept in T2, &cap; permissions at both grants</td><td>DA-3 &rarr; 3A</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-005">ADR-005</a></td><td>Hand-written <code>TokenExchangeClient</code>, principal via <code>McpTransportContext</code></td><td>DA-4 &rarr; 4A</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-006">ADR-006</a></td><td>No caches, HS256 kept, T2 &le; 5 min</td><td>DA-5 &rarr; 5A</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-007">ADR-007</a></td><td>Implicit delegation via <code>act</code></td><td>DA-6 &rarr; 6A</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-008">ADR-008</a></td><td><code>ClientAuthenticator</code> + env-driven upsert of <code>aj-mcp-server</code></td><td>DA-7 &rarr; 7A</td><td class="pass">Accepted</td></tr>
+<tr><td><a href="#adr-009">ADR-009</a></td><td>Bundle FU-3, FU-5, FU-2a</td><td>DA-8 &rarr; 8B</td><td class="pass">Accepted</td></tr>
+</table>
+</div>
+
+<main>
+<!-- ADR-001 -->
+<section class="card adr" id="adr-001">
+  <h2><span class="st">Accepted</span>ADR-001: Validate-then-exchange replaces token passthrough</h2>
+  <div class="area">Overall direction &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: Problem Reframing</a></div>
+  <div class="lbl">Context</div>
+  <p>The MCP server accepts any bearer (<code>McpJwtFilter</code>) and re-sends the client's token (<code>JwtForwardingInterceptor</code> + static <code>AccessTokenHolder</code>). The host accepts any token signed with its one HMAC key, and no token has an audience. MCP 2026-07-28 requires audience validation and forbids passthrough (MCP-07/-11/-29/-31), but leaves the mechanism open. RFC 8693 §1 describes this exact case.</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>Every MUST on the hop</li><li>Per-user authorisation at the host (L04)</li><li>Relayed calls distinguishable (MCP-34)</li><li>L07 shape + team standard</li><li>Proportionate effort</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">A1 + A2a + A3: introspection inbound, RFC 8693 outbound, <code>aud</code> at both RS, extend the custom AS</li><li>A4: client credentials + user header</li><li>A2b/A2c: local JWT validation at the MCP server</li><li>A5: migrate to SAS / Keycloak</li><li>A6: DPoP/mTLS as the main fix</li></ol>
+  <div class="outcome"><b>Chosen: option 1</b>, because it alone meets every hop MUST, keeps the user's identity and permissions downstream, makes the MCP server a distinguishable actor and needs no key migration. It matches L07, the team standard and all vendor patterns found.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>Closes all four brief vulnerabilities</li><li>The MCP side is mostly deletions + Spring wiring</li><li>Tool behaviour unchanged</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>More hand-written AS security code</li><li>Two extra local calls per tool call</li><li>A4 rejected (confused deputy). A5 left to FU-9. A6 deferred (FU-8)</li></ul></div></div>
+</section>
+
+<!-- ADR-002 -->
+<section class="card adr" id="adr-002">
+  <h2><span class="st">Accepted</span>ADR-002: URI audiences with a lenient default</h2>
+  <div class="area">DA-1 &rarr; 1A &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-1</a></div>
+  <div class="lbl">Context</div>
+  <p>Audience is the missing primitive (I1). PRM <code>resource</code>, the RFC 8707 <code>resource</code>, T1 <code>aud</code> and the MCP check must be byte-identical (P-05, I8). J-08 requires a default when <code>resource</code> is omitted. J-16 requires distinct audiences. Claude's behaviour is unverified.</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>One property drives PRM, challenge and <code>aud</code> check</li><li>Compatibility with clients that omit <code>resource</code></li><li>AS identity &ne; API identity (J-16)</li><li>Works on a fresh clone</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">1A URI audiences (<code>aj.mcp.base-url</code>, <code>${issuer}/api</code>). Missing &rarr; MCP + WARN. Unknown &rarr; <code>invalid_target</code></li><li>1B the same, strict</li><li>1C logical identifiers</li><li>1D host API audience = issuer</li></ol>
+  <div class="outcome"><b>Chosen: 1A</b>, because it is spec-native, preserves the PRM = <code>aud</code> invariant and does not break clients that omit <code>resource</code>. The default only ever yields an MCP-audience token. Exact match, no trailing slash. Defaults <code>http://localhost:8081</code> and <code>http://localhost:8080/api</code>.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>One configured value per resource on each side</li><li>Misconfiguration fails loudly (<code>invalid_target</code>)</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Implicit default for non-compliant clients (WARN)</li><li>No URI normalisation (stretch)</li><li>Tunnel deployments must align env on both apps</li></ul></div></div>
+</section>
+
+<!-- ADR-003 -->
+<section class="card adr" id="adr-003">
+  <h2><span class="st">Accepted</span>ADR-003: Host <code>/api</code> audience gate + per-grant resource policy</h2>
+  <div class="area">DA-2 &rarr; 2B &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-2</a></div>
+  <div class="lbl">Context</div>
+  <p>Without a host <code>aud</code> check, T1 could still be replayed at <code>/api</code> (I1, B-04, O-14). A resource registry knowing both URIs opens a new shortcut: <code>/oauth2/authorize</code> with <code>resource = host API</code> would bypass the MCP server.</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>B-04/O-14 MUST</li><li>Close the auth-code&rarr;<code>/api</code> shortcut</li><li>No matcher changes</li><li>Generalises to future resources</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li>2A audience gate only</li><li class="chosen">2B gate + per-grant resource policy (host-API audience only via exchange by the client bound to the subject's resource)</li><li>2C gate + actor requirement on <code>mcp:*</code></li><li>2D 2B + 2C</li></ol>
+  <div class="outcome"><b>Chosen: 2B</b>, because it closes the shortcut at issuance with no matcher change. T0 gets <code>aud</code> = host API at login. The policy and binding are config-backed (<code>ResourcePolicy</code>), so there is no schema migration.</div>
+  <table>
+    <tr><th>Resource</th><th>authorization_code</th><th>refresh_token</th><th>token-exchange</th><th>login (T0)</th></tr>
+    <tr><td>MCP (<code>aj.mcp.base-url</code>)</td><td>allowed (default)</td><td>allowed, = stored</td><td>not allowed</td><td>—</td></tr>
+    <tr><td>Host API (<code>${issuer}/api</code>)</td><td><code>invalid_target</code></td><td><code>invalid_target</code></td><td>only the client bound to the subject <code>aud</code> (<code>aj-mcp-server</code>)</td><td>always</td></tr>
+  </table>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>Replay closed both ways. <code>/api</code> accepts only T0 and T2</li><li><code>PERMISSION_mcp:*</code> reachable only by T2</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>One more policy table. Future first-party clients need entries</li><li>Issuance is the single guard (2C stretch)</li><li>Legacy T0s rejected once</li></ul></div></div>
+</section>
+
+<!-- ADR-004 -->
+<section class="card adr" id="adr-004">
+  <h2><span class="st">Accepted</span>ADR-004: Hierarchical <code>mcp:*</code>, normalised at issuance, kept in T2, intersected at both grants</h2>
+  <div class="area">DA-3 &rarr; 3A &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-3</a></div>
+  <div class="lbl">Context</div>
+  <p>MCP-14 (new MUST) requires scope hierarchies. An <code>mcp:edit</code>-only token cannot GET today. Scopes are never intersected with permissions, so a viewer can get <code>mcp:edit</code> (F6). An exchange copying subject scopes would make that systemic (I3). The team standard says &ldquo;map to READ/EDIT&rdquo;, while the research lean was to keep <code>mcp:*</code> (K11).</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>MCP-14 by behaviour</li><li>Close F6 at the source and at exchange</li><li>No matcher changes</li><li>T2 distinguishable from T0 (MCP-34)</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">3A hierarchy expanded at the AS, T2 keeps <code>mcp:*</code>, &cap; permissions at both grants</li><li>3B independent, documented</li><li>3C translate to READ/EDIT in T2</li><li>3D hierarchy at the resource servers</li></ol>
+  <div class="outcome"><b>Chosen: 3A</b>, because the hierarchy lives in one function (<code>ScopePolicy</code>) and checks stay flat. Order: <b>expand &rarr; &cap; permission scopes (READ&harr;<code>mcp:read</code>, EDIT&harr;<code>mcp:edit</code>) &rarr; &cap; client scopes &rarr; drop unknown</b>. Empty &rarr; <code>invalid_scope</code>. Auth code uses consent-time permissions. Exchange uses <b>current</b> permissions.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>A viewer never holds <code>mcp:edit</code> (T1 or T2). Revocation applies on the next call</li><li>Edit-scoped clients can list</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Issued <code>scope</code> can be wider than requested</li><li>Standard wording updated in the same change</li><li>Consent UI may still show <code>mcp:edit</code> to a viewer</li></ul></div></div>
+</section>
+
+<!-- ADR-005 -->
+<section class="card adr" id="adr-005">
+  <h2><span class="st">Accepted</span>ADR-005: Hand-written <code>TokenExchangeClient</code>; principal via <code>McpTransportContext</code></h2>
+  <div class="area">DA-4 &rarr; 4A &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-4</a></div>
+  <div class="lbl">Context</div>
+  <p>Tools run on <code>boundedElastic</code>, so <code>SecurityContextHolder</code> is empty (F3). The static ThreadLocal is never cleared (V7). Spring's exchange provider + interceptor need three non-default overrides, any of which silently reintroduces a bug (K9).</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>No static or thread-bound credentials</li><li>No hidden defaults or caches</li><li>Keep the SDK's async model</li><li>Outbound &ne; inbound must be testable</li><li>L07 names <code>TokenExchangeClient</code></li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">4A hand-written client + <code>Authentication</code> in <code>McpTransportContext</code>, T2 passed explicitly</li><li>4B Spring provider + <code>immediateExecution(true)</code></li><li>4C hybrid explicit provider</li><li>4D hand-written client + holder cleared in <code>finally</code></li></ol>
+  <div class="outcome"><b>Chosen: 4A</b>, because it has the fewest moving parts and explicit data flow (T2 lives in the handler's stack frame). <code>AccessTokenHolder</code>, <code>JwtForwardingInterceptor</code>, <code>McpJwtFilter</code> and <code>TOKEN_KEY</code> are deleted. <code>AjApiClient</code> takes the bearer per call. A per-tool shortfall becomes <code>McpToolException.insufficientScope</code> before any exchange. HTTP 403 only for tokens with no <code>mcp:*</code> scope.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>No cross-thread or cross-user leaks</li><li>Outbound header directly assertable</li><li>No OAuth2 client starter</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Hand-written OAuth client code</li><li><code>AjApiClient</code> signatures change (tool contracts do not)</li><li>Relies on I5 (spike). Fallback 4D/4B</li><li>MCP-13 partly met for per-tool shortfalls</li></ul></div></div>
+</section>
+
+<!-- ADR-006 -->
+<section class="card adr" id="adr-006">
+  <h2><span class="st">Accepted</span>ADR-006: Introspection and exchange without caches; HS256 kept; T2 &le; 5 min</h2>
+  <div class="area">DA-5 &rarr; 5A &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-5</a></div>
+  <div class="lbl">Context</div>
+  <p>Introspection decouples key management (I2): local validation would need the shared HMAC secret or a JWKS migration. On a localhost hop, caching is a security decision (I6). MCP is stateless. The team standard says no caching.</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>The MCP server never holds a signing key (J-02/J-13)</li><li>Immediate revocation</li><li>No key infrastructure on the critical path</li><li>L07 + team standard</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">5A introspection + exchange, no caches, HS256</li><li>5B short-TTL caches keyed by SHA-256(T1) + <code>client_id</code></li><li>5C local JWT + RS256/JWKS now</li></ol>
+  <div class="outcome"><b>Chosen: 5A.</b> <code>POST /oauth2/introspect</code> requires caller auth and returns <code>{active:false}</code> (no detail) for any unusable token, including tokens whose <code>aud</code> is not the caller's bound resource. The MCP server also checks <code>aud</code> itself. T2 <code>exp</code> = min(now + 5 min, T1 <code>exp</code>). The response carries <code>expires_in</code> and <code>issued_token_type</code>.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>Revocation and permission loss apply on the next call</li><li>Nothing to invalidate</li><li>JWKS (FU-6) remains a clean upgrade</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Two local calls per tool call (unmeasured)</li><li>Host outage &rarr; rejected (fail closed)</li><li>HS256 remains</li></ul></div></div>
+</section>
+
+<!-- ADR-007 -->
+<section class="card adr" id="adr-007">
+  <h2><span class="st">Accepted</span>ADR-007: Implicit delegation via <code>act</code></h2>
+  <div class="area">DA-6 &rarr; 6A &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-6</a></div>
+  <div class="lbl">Context</div>
+  <p>The brief's confused deputy is the accountability gap: the backend cannot tell relayed calls from direct ones (MCP-34). The MCP server authenticates at the exchange, so the AS already knows the actor (I7).</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>Auditable accountability (X-15)</li><li>No extra client machinery</li><li>Auth0 OBO / SAS alignment</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">6A AS adds <code>act: {sub: &lt;mcp client_id&gt;}</code>, no <code>actor_token</code></li><li>6B impersonation (<code>client_id</code> only)</li><li>6C <code>actor_token</code> from a new <code>client_credentials</code> grant</li></ol>
+  <div class="outcome"><b>Chosen: 6A</b>, because it gives the standard delegation claim at zero client cost. T2: <code>sub</code> = user, <code>client_id</code> = <code>act.sub</code> = <code>aj-mcp-server</code>.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>The host can audit or later enforce (2C)</li><li>No <code>client_credentials</code> grant needed</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Actor asserted by client auth, not a token. Multi-hop would need 6C</li><li><code>act</code> not yet required for <code>mcp:*</code></li></ul></div></div>
+</section>
+
+<!-- ADR-008 -->
+<section class="card adr" id="adr-008">
+  <h2><span class="st">Accepted</span>ADR-008: One <code>ClientAuthenticator</code>; env-driven startup upsert of the MCP client</h2>
+  <div class="area">DA-7 &rarr; 7A &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-7</a></div>
+  <div class="lbl">Context</div>
+  <p>Introspection needs an authenticated caller (I-03), and exchange must be restricted to the client bound to the MCP resource (I4). Client auth is inline today, reads only <code>client_secret</code>, and ignores the advertised Basic method (F5, P8). No confidential client exists. The committed JWT secret default shows how secrets drift into the repo (F7).</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>Honour Basic, keep post</li><li>No committed secret or hash</li><li>Every Liquibase context</li><li>One client registry</li><li>Fresh clone works via <code>start-dev</code></li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li class="chosen">7A <code>ClientAuthenticator</code> (Basic + post, BCrypt) + <code>McpClientProvisioner</code> upsert from <code>AJ_OAUTH_CLIENT_ID/SECRET</code></li><li>7B Liquibase <code>dev</code> changeset with a known hash</li><li>7C config-defined internal clients</li></ol>
+  <div class="outcome"><b>Chosen: 7A.</b> Client: grant <code>token-exchange</code>, Basic + post, scopes <code>mcp:read mcp:edit</code>. Resource binding via <code>app.oauth2.mcp-client-id</code> in <code>ResourcePolicy</code> (no schema change). <b>Missing env:</b> the host skips with a WARN and keeps serving (introspect/exchange &rarr; <code>invalid_client</code>). The MCP server fails fast. <code>start-dev</code> exports the same values to both apps. Both credential methods at once &rarr; <code>invalid_request</code>.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>Fixes advertised-but-ignored Basic (P8)</li><li>Rotation = change env + restart</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Startup writer with side effects (idempotency tests)</li><li>Theoretical DCR id collision</li><li><code>private_key_jwt</code> waits for FU-6/7</li></ul></div></div>
+</section>
+
+<!-- ADR-009 -->
+<section class="card adr" id="adr-009">
+  <h2><span class="st">Accepted</span>ADR-009: Bundle same-touch hygiene: FU-3, FU-5, FU-2a</h2>
+  <div class="area">DA-8 &rarr; 8B &middot; 2026-11-14 &middot; <a href="solution-exploration.html">Exploration: DA-8</a></div>
+  <div class="lbl">Context</div>
+  <p>Pre-existing MUST violations remain after the hop fix. B-12: token logging. B-15/O-07: unbound refresh tokens. O-09: <code>_token</code>. External <code>kuba-*</code> defaults break the local <code>aud</code> check. Several sit in code this change rewrites.</p>
+  <div class="lbl">Decision drivers</div>
+  <ul><li>Don't touch the same lines twice</li><li>Consistency within a file</li><li>No AS-wide sweep</li></ul>
+  <div class="lbl">Considered options</div>
+  <ol class="opts"><li>8A hop only</li><li class="chosen">8B + FU-3 (no secret logging), FU-5 (local defaults, env wiring incl. <code>APP_JWT_SECRET</code>, CORS env), FU-2a (refresh bound to client + resource)</li><li>8C + FU-4 <code>_token</code></li><li>8D full sweep</li></ol>
+  <div class="outcome"><b>Chosen: 8B</b>, because each item edits a structure the hop already changes, closing B-12 and half of B-15/O-07 almost for free. FU-4 stays a stretch (the consent page depends on it). FU-2b needs its own storage decision.</div>
+  <div class="cons"><div class="good"><div class="lbl">Good</div><ul><li>No secrets in AS logs (log-capture test)</li><li>Fresh clone works. Tunnels configure via env</li></ul></div>
+  <div class="bad"><div class="lbl">Bad</div><ul><li>Larger diff, more tests</li><li>Debug habits relying on old logs break</li><li>Committed JWT secret default remains. O-09 open until FU-4</li></ul></div></div>
+</section>
+</main>
+</body>
+</html>

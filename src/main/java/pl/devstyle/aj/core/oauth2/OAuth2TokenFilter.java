@@ -1,25 +1,29 @@
 package pl.devstyle.aj.core.oauth2;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
+import pl.devstyle.aj.core.oauth2.AuthorizationCodeService.AuthorizationCodeData;
 import pl.devstyle.aj.core.security.JwtTokenProvider;
+import pl.devstyle.aj.core.security.OAuth2TokenClaims;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashSet;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,35 +31,36 @@ import java.util.stream.Collectors;
 public class OAuth2TokenFilter extends OncePerRequestFilter {
 
     private static final String TOKEN_ENDPOINT = "/oauth2/token";
+    private static final String AUTHORIZATION_CODE_GRANT = "authorization_code";
+    private static final String REFRESH_TOKEN_GRANT = "refresh_token";
+    private static final long ACCESS_TOKEN_TTL_SECONDS = 900;
+    private static final String INVALID_CODE = "Authorization code is invalid or has expired";
 
-    private static final String TOKEN_EXCHANGE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:token-exchange";
-    private static final String ACCESS_TOKEN_TYPE_URN = "urn:ietf:params:oauth:token-type:access_token";
-    private static final Map<String, String> MCP_SCOPE_MAPPING = Map.of(
-            "mcp:read", "READ",
-            "mcp:edit", "EDIT"
-    );
-
-    private final RegisteredClientRepository registeredClientRepository;
     private final AuthorizationCodeService authorizationCodeService;
     private final RefreshTokenService refreshTokenService;
     private final JwtTokenProvider jwtTokenProvider;
-    private final PasswordEncoder passwordEncoder;
-    private final OAuth2ClientAuthenticator clientAuthenticator;
+    private final ClientAuthenticator clientAuthenticator;
+    private final ResourcePolicy resourcePolicy;
+    private final TokenExchangeGrantHandler tokenExchangeGrantHandler;
+    private final OAuth2ErrorWriter errorWriter;
     private final ObjectMapper objectMapper;
 
-    public OAuth2TokenFilter(RegisteredClientRepository registeredClientRepository,
-                             AuthorizationCodeService authorizationCodeService,
+    public OAuth2TokenFilter(AuthorizationCodeService authorizationCodeService,
                              RefreshTokenService refreshTokenService,
                              JwtTokenProvider jwtTokenProvider,
-                             PasswordEncoder passwordEncoder,
-                             OAuth2ClientAuthenticator clientAuthenticator) {
-        this.registeredClientRepository = registeredClientRepository;
+                             ClientAuthenticator clientAuthenticator,
+                             ResourcePolicy resourcePolicy,
+                             TokenExchangeGrantHandler tokenExchangeGrantHandler,
+                             OAuth2ErrorWriter errorWriter,
+                             ObjectMapper objectMapper) {
         this.authorizationCodeService = authorizationCodeService;
         this.refreshTokenService = refreshTokenService;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.passwordEncoder = passwordEncoder;
         this.clientAuthenticator = clientAuthenticator;
-        this.objectMapper = new ObjectMapper();
+        this.resourcePolicy = resourcePolicy;
+        this.tokenExchangeGrantHandler = tokenExchangeGrantHandler;
+        this.errorWriter = errorWriter;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -66,214 +71,134 @@ public class OAuth2TokenFilter extends OncePerRequestFilter {
             return;
         }
 
-        log.info("Token request received | params: {}", request.getParameterMap().entrySet().stream()
-                .map(e -> e.getKey() + "=" + String.join(",", e.getValue()))
-                .collect(Collectors.joining(" | ")));
-
+        String grantType = request.getParameter("grant_type");
         try {
-            String grantType = request.getParameter("grant_type");
-            if ("authorization_code".equals(grantType)) {
-                handleAuthorizationCodeGrant(request, response);
-            } else if ("refresh_token".equals(grantType)) {
-                handleRefreshTokenGrant(request, response);
-            } else if (TOKEN_EXCHANGE_GRANT_TYPE.equals(grantType)) {
-                handleTokenExchangeGrant(request, response);
-            } else {
-                sendError(response, OAuth2Error.UNSUPPORTED_GRANT_TYPE, "Unsupported grant type: " + grantType);
-            }
-        } catch (Exception e) {
-            log.error("Token endpoint error | reason={}", e.getMessage(), e);
+            TokenResponse tokenResponse = switch (grantType == null ? "" : grantType) {
+                case AUTHORIZATION_CODE_GRANT -> handleAuthorizationCodeGrant(request);
+                case REFRESH_TOKEN_GRANT -> handleRefreshTokenGrant(request);
+                case TokenExchangeGrantHandler.GRANT_TYPE -> tokenExchangeGrantHandler.handle(request);
+                default -> throw new OAuth2RequestException(OAuth2Error.UNSUPPORTED_GRANT_TYPE,
+                        "Unsupported grant type");
+            };
+            writeTokenResponse(response, tokenResponse);
+        } catch (OAuth2RequestException e) {
+            log.warn("OAuth2 token request rejected | grant_type={} | client_id={} | error={}",
+                    OAuth2LogValues.sanitize(grantType), OAuth2LogValues.clientId(request), e.getError().getError());
+            errorWriter.write(response, e.getError(), e.getDescription());
+        } catch (RuntimeException e) {
+            log.error("OAuth2 token endpoint error | grant_type={} | client_id={} | error_type={}",
+                    OAuth2LogValues.sanitize(grantType), OAuth2LogValues.clientId(request), e.getClass().getName());
+            log.debug("OAuth2 token endpoint error details", e);
             if (!response.isCommitted()) {
-                sendError(response, OAuth2Error.SERVER_ERROR, "Internal server error");
+                errorWriter.write(response, OAuth2Error.SERVER_ERROR, "Internal server error");
             }
         }
     }
 
-    private void handleAuthorizationCodeGrant(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String code = request.getParameter("code");
-        String clientId = request.getParameter("client_id");
-        String redirectUri = request.getParameter("redirect_uri");
-        String clientSecret = request.getParameter("client_secret");
+    private TokenResponse handleAuthorizationCodeGrant(HttpServletRequest request) {
+        String code = requiredParameter(request, "code");
+        String redirectUri = requiredParameter(request, "redirect_uri");
 
-        if (code == null || code.isBlank()) {
-            sendError(response, OAuth2Error.INVALID_REQUEST, "Missing required parameter: code");
-            return;
+        AuthorizationCodeData data = authorizationCodeService.consumeAuthorizationCode(code)
+                .orElseThrow(() -> invalidGrant(INVALID_CODE));
+
+        RegisteredClient client = clientAuthenticator.identify(request);
+        requireGrantType(client, AuthorizationGrantType.AUTHORIZATION_CODE);
+        if (!client.getClientId().equals(data.clientId())) {
+            throw invalidGrant(INVALID_CODE);
         }
-
-        if (redirectUri == null || redirectUri.isBlank()) {
-            sendError(response, OAuth2Error.INVALID_REQUEST, "Missing required parameter: redirect_uri");
-            return;
-        }
-
-        var authCodeData = authorizationCodeService.consumeAuthorizationCode(code);
-        if (authCodeData.isEmpty()) {
-            sendError(response, OAuth2Error.INVALID_GRANT, "Authorization code is invalid or has expired");
-            return;
-        }
-
-        var data = authCodeData.get();
-
-        // Validate client_id if provided
-        if (clientId != null && !clientId.equals(data.clientId())) {
-            log.warn("Token exchange failed | reason=Client ID mismatch");
-            sendError(response, OAuth2Error.INVALID_GRANT, "Authorization code is invalid or has expired");
-            return;
-        }
-
-        // Validate redirect_uri
         if (!redirectUri.equals(data.redirectUri())) {
-            log.warn("Token exchange failed | client_id={} | reason=Redirect URI mismatch", data.clientId());
-            sendError(response, OAuth2Error.INVALID_GRANT, "Authorization code is invalid or has expired");
-            return;
+            throw invalidGrant(INVALID_CODE);
         }
-
-        // Authenticate confidential clients
-        RegisteredClient client = registeredClientRepository.findByClientId(data.clientId());
-        if (client != null) {
-            boolean isConfidentialClient = client.getClientAuthenticationMethods().stream()
-                    .noneMatch(method -> "none".equals(method.getValue()));
-            if (isConfidentialClient) {
-                if (clientSecret == null || clientSecret.isBlank()) {
-                    sendError(response, OAuth2Error.INVALID_CLIENT, "Client authentication required");
-                    return;
-                }
-                if (!passwordEncoder.matches(clientSecret, client.getClientSecret())) {
-                    sendError(response, OAuth2Error.INVALID_CLIENT, "Client authentication failed");
-                    return;
-                }
+        if (data.codeChallenge() != null
+                && !validatePkceCodeVerifier(request.getParameter("code_verifier"), data.codeChallenge(),
+                data.codeChallengeMethod())) {
+            throw invalidGrant(INVALID_CODE);
+        }
+        requestedResource(request, data.clientId()).ifPresent(resource -> {
+            if (!resource.equals(data.resource())) {
+                throw invalidGrant("The resource does not match the authorization grant");
             }
-        }
+        });
 
-        // Validate PKCE code_verifier
-        if (data.codeChallenge() != null) {
-            String codeVerifier = request.getParameter("code_verifier");
-            if (!validatePkceCodeVerifier(codeVerifier, data.codeChallenge(), data.codeChallengeMethod())) {
-                sendError(response, OAuth2Error.INVALID_GRANT, "Authorization code is invalid or has expired");
-                return;
-            }
-        }
+        Instant issuedAt = Instant.now();
+        Instant expiresAt = issuedAt.plusSeconds(ACCESS_TOKEN_TTL_SECONDS);
+        String accessToken = mintAccessToken(data.username(), data.scope(), data.resource(), data.clientId(),
+                expiresAt);
+        String refreshToken = client.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN)
+                ? refreshTokenService.issueToken(data.username(), data.scope(), data.clientId(), data.resource())
+                : null;
 
-        // Generate tokens with granted OAuth2 scopes (not user permissions)
-        Set<String> grantedScopes = data.scope() != null
-                ? Set.of(data.scope().split("\\s+"))
-                : Set.of();
-        String issuer = getBaseUrl(request);
-        String accessToken = jwtTokenProvider.generateOAuth2Token(data.username(), grantedScopes, issuer);
-        String refreshToken = refreshTokenService.issueToken(data.username(), grantedScopes, data.scope());
-
-        sendTokenResponse(response, accessToken, refreshToken, data.scope());
-
-        log.info("OAuth2 token issued | client_id={} | user={} | scope={} | access_token={} | refresh_token={}",
-                data.clientId(), data.username(), data.scope(), accessToken, refreshToken);
+        log.info("OAuth2 token issued | grant_type={} | client_id={} | user={} | scope={} | resource={}",
+                AUTHORIZATION_CODE_GRANT, data.clientId(), data.username(), data.scope(), data.resource());
+        return TokenResponse.withRefreshToken(accessToken, issuedAt, expiresAt, refreshToken, data.scope());
     }
 
-    private void handleRefreshTokenGrant(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String refreshToken = request.getParameter("refresh_token");
-        if (refreshToken == null || refreshToken.isBlank()) {
-            sendError(response, OAuth2Error.INVALID_REQUEST, "Missing required parameter: refresh_token");
-            return;
-        }
+    private TokenResponse handleRefreshTokenGrant(HttpServletRequest request) {
+        String refreshToken = requiredParameter(request, "refresh_token");
+        RegisteredClient client = clientAuthenticator.identify(request);
+        requireGrantType(client, AuthorizationGrantType.REFRESH_TOKEN);
+        Optional<String> resource = requestedResource(request, client.getClientId());
 
-        var result = refreshTokenService.consumeAndRotate(refreshToken);
-        if (result.isEmpty()) {
-            sendError(response, OAuth2Error.INVALID_GRANT, "The provided refresh token is invalid, expired, or revoked");
-            return;
-        }
+        var rotation = refreshTokenService.consumeAndRotate(refreshToken, client.getClientId(), resource)
+                .orElseThrow(() -> invalidGrant("The provided refresh token is invalid, expired, or revoked"));
+        var data = rotation.originalData();
 
-        var rotationResult = result.get();
-        var data = rotationResult.originalData();
+        Instant issuedAt = Instant.now();
+        Instant expiresAt = issuedAt.plusSeconds(ACCESS_TOKEN_TTL_SECONDS);
+        String accessToken = mintAccessToken(data.username(), data.scope(), data.resource(), data.clientId(),
+                expiresAt);
 
-        Set<String> grantedScopes = data.scope() != null
-                ? Set.of(data.scope().split("\\s+"))
-                : Set.of();
-        String issuer = getBaseUrl(request);
-        String accessToken = jwtTokenProvider.generateOAuth2Token(data.username(), grantedScopes, issuer);
-
-        sendTokenResponse(response, accessToken, rotationResult.newToken(), data.scope());
-
-        log.info("OAuth2 token refreshed | user={} | scope={}", data.username(), data.scope());
+        log.info("OAuth2 token refreshed | grant_type={} | client_id={} | user={} | scope={} | resource={}",
+                REFRESH_TOKEN_GRANT, data.clientId(), data.username(), data.scope(), data.resource());
+        return TokenResponse.withRefreshToken(accessToken, issuedAt, expiresAt, rotation.newToken(), data.scope());
     }
 
-    private void handleTokenExchangeGrant(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        // Authenticate the calling client
-        var credentials = clientAuthenticator.extractCredentials(request);
-        if (credentials.isEmpty()) {
-            sendError(response, OAuth2Error.INVALID_CLIENT, "Client authentication required");
-            return;
+    private static void requireGrantType(RegisteredClient client, AuthorizationGrantType grantType) {
+        if (!client.getAuthorizationGrantTypes().contains(grantType)) {
+            throw new OAuth2RequestException(OAuth2Error.UNAUTHORIZED_CLIENT,
+                    "The client is not authorized to use the " + grantType.getValue() + " grant");
         }
-
-        var client = clientAuthenticator.authenticate(credentials.get());
-        if (client.isEmpty()) {
-            sendError(response, OAuth2Error.INVALID_CLIENT, "Client authentication failed");
-            return;
-        }
-
-        // Validate required parameters
-        String subjectToken = request.getParameter("subject_token");
-        if (subjectToken == null || subjectToken.isBlank()) {
-            sendError(response, OAuth2Error.INVALID_REQUEST, "Missing required parameter: subject_token");
-            return;
-        }
-
-        String subjectTokenType = request.getParameter("subject_token_type");
-        if (subjectTokenType == null || subjectTokenType.isBlank()) {
-            sendError(response, OAuth2Error.INVALID_REQUEST, "Missing required parameter: subject_token_type");
-            return;
-        }
-
-        if (!ACCESS_TOKEN_TYPE_URN.equals(subjectTokenType)) {
-            sendError(response, OAuth2Error.INVALID_REQUEST, "Unsupported subject_token_type: " + subjectTokenType);
-            return;
-        }
-
-        // Validate subject_token
-        var parsedToken = jwtTokenProvider.parseToken(subjectToken);
-        if (parsedToken.isEmpty()) {
-            sendError(response, OAuth2Error.INVALID_GRANT, "Subject token is invalid or expired");
-            return;
-        }
-
-        // Map MCP scopes to backend permissions
-        String requestedScope = request.getParameter("scope");
-        Set<String> scopesToMap = requestedScope != null
-                ? Set.of(requestedScope.split("\\s+"))
-                : parsedToken.get().permissions();
-
-        Set<String> mappedPermissions = new LinkedHashSet<>();
-        for (String scope : scopesToMap) {
-            String mapped = MCP_SCOPE_MAPPING.get(scope);
-            if (mapped != null) {
-                mappedPermissions.add(mapped);
-            }
-        }
-
-        // Generate Token-B with mapped permissions and audience = issuer URL
-        String issuer = getBaseUrl(request);
-        String tokenB = jwtTokenProvider.generateOAuth2Token(
-                parsedToken.get().username(), mappedPermissions, issuer, issuer);
-
-        // RFC 8693 Section 2.2 response (no refresh_token)
-        sendTokenExchangeResponse(response, tokenB);
-
-        log.info("Token exchange completed | sub={} | client_id={} | mapped_permissions={}",
-                parsedToken.get().username(), credentials.get().clientId(), mappedPermissions);
     }
 
-    private void sendTokenExchangeResponse(HttpServletResponse response, String accessToken) throws IOException {
+    private Optional<String> requestedResource(HttpServletRequest request, String clientId) {
+        return resourcePolicy.resourceParam(request)
+                .map(resource -> resourcePolicy.resolveForAuthorization(resource, clientId));
+    }
+
+    private String mintAccessToken(String username, String scope, String resource, String clientId,
+                                   Instant expiresAt) {
+        return jwtTokenProvider.generateOAuth2Token(new OAuth2TokenClaims(username, scopesOf(scope),
+                resource, clientId, null, expiresAt));
+    }
+
+    private static Set<String> scopesOf(String scope) {
+        if (scope == null || scope.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(scope.trim().split("\\s+")).collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private void writeTokenResponse(HttpServletResponse response, TokenResponse tokenResponse) throws IOException {
         response.setStatus(HttpServletResponse.SC_OK);
-        response.setContentType("application/json");
-        response.setHeader("Cache-Control", "no-store");
-        response.setHeader("Pragma", "no-cache");
-
-        var sb = new StringBuilder();
-        sb.append("{\"access_token\":\"").append(accessToken).append("\"");
-        sb.append(",\"issued_token_type\":\"").append(ACCESS_TOKEN_TYPE_URN).append("\"");
-        sb.append(",\"token_type\":\"Bearer\"");
-        sb.append(",\"expires_in\":900");
-        sb.append("}");
-
-        response.getOutputStream().write(sb.toString().getBytes(StandardCharsets.UTF_8));
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        response.setHeader(HttpHeaders.PRAGMA, "no-cache");
+        response.getOutputStream().write(objectMapper.writeValueAsBytes(tokenResponse));
         response.getOutputStream().flush();
+    }
+
+    private static String requiredParameter(HttpServletRequest request, String name) {
+        String value = request.getParameter(name);
+        if (value == null || value.isBlank()) {
+            throw new OAuth2RequestException(OAuth2Error.INVALID_REQUEST, "Missing required parameter: " + name);
+        }
+        return value;
+    }
+
+    private static OAuth2RequestException invalidGrant(String description) {
+        return new OAuth2RequestException(OAuth2Error.INVALID_GRANT, description);
     }
 
     private boolean validatePkceCodeVerifier(String codeVerifier, String codeChallenge, String codeChallengeMethod) {
@@ -290,7 +215,7 @@ public class OAuth2TokenFilter extends OncePerRequestFilter {
             return false;
         }
         if (!"S256".equals(codeChallengeMethod)) {
-            log.warn("PKCE validation failed | reason=Unsupported code_challenge_method: {}", codeChallengeMethod);
+            log.warn("PKCE validation failed | reason=Unsupported code_challenge_method");
             return false;
         }
 
@@ -307,73 +232,5 @@ public class OAuth2TokenFilter extends OncePerRequestFilter {
             log.error("SHA-256 algorithm not available for PKCE validation", e);
             return false;
         }
-    }
-
-    private void sendTokenResponse(HttpServletResponse response, String accessToken, String refreshToken, String scope)
-            throws IOException {
-        response.setStatus(HttpServletResponse.SC_OK);
-        response.setContentType("application/json");
-        response.setHeader("Cache-Control", "no-store");
-        response.setHeader("Pragma", "no-cache");
-
-        var sb = new StringBuilder();
-        sb.append("{\"access_token\":\"").append(accessToken).append("\"");
-        sb.append(",\"token_type\":\"Bearer\"");
-        sb.append(",\"expires_in\":900");
-        sb.append(",\"refresh_token\":\"").append(refreshToken).append("\"");
-        if (scope != null && !scope.isEmpty()) {
-            sb.append(",\"scope\":\"").append(scope).append("\"");
-        }
-        sb.append("}");
-
-        String tokenResponseBody = sb.toString();
-        log.info("OAuth2 token response body: {}", tokenResponseBody);
-        response.getOutputStream().write(tokenResponseBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        response.getOutputStream().flush();
-    }
-
-    private void sendError(HttpServletResponse response, OAuth2Error error, String description) throws IOException {
-        int status = switch (error) {
-            case INVALID_CLIENT -> HttpServletResponse.SC_UNAUTHORIZED;
-            case UNAUTHORIZED_CLIENT, ACCESS_DENIED -> HttpServletResponse.SC_FORBIDDEN;
-            case SERVER_ERROR -> HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
-            default -> HttpServletResponse.SC_BAD_REQUEST;
-        };
-        log.warn("OAuth2 token error | error={} | description={} | status={}", error, description, status);
-        response.setStatus(status);
-        response.setContentType("application/json");
-        byte[] body = objectMapper.writeValueAsBytes(OAuth2ErrorResponse.of(error, description));
-        response.getOutputStream().write(body);
-        response.getOutputStream().flush();
-    }
-
-    private String getBaseUrl(HttpServletRequest request) {
-        String scheme = request.getScheme();
-        String serverName = request.getServerName();
-        int serverPort = request.getServerPort();
-
-        String forwardedProto = request.getHeader("X-Forwarded-Proto");
-        String forwardedHost = request.getHeader("X-Forwarded-Host");
-        String forwardedPort = request.getHeader("X-Forwarded-Port");
-
-        if (forwardedProto != null) {
-            scheme = forwardedProto;
-        }
-        if (forwardedHost != null) {
-            serverName = forwardedHost;
-        }
-        if (forwardedPort != null) {
-            serverPort = Integer.parseInt(forwardedPort);
-        }
-
-        if ((scheme.equals("http") && serverPort == 80) || (scheme.equals("https") && serverPort == 443)) {
-            return scheme + "://" + serverName;
-        }
-
-        if (forwardedProto != null && forwardedPort == null) {
-            return scheme + "://" + serverName;
-        }
-
-        return scheme + "://" + serverName + ":" + serverPort;
     }
 }

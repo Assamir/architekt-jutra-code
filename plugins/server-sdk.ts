@@ -37,13 +37,13 @@ export interface ServerSDK {
   };
 }
 
-const DEFAULT_HOST_BASE_URL = "http://localhost:8080";
+const DEFAULT_HOST_BASE_URL = "http://localhost:8180";
 
 /**
  * Create a server-side SDK instance for a plugin.
  *
  * @param pluginId - The plugin's unique identifier
- * @param hostBaseUrl - Base URL of the host application (defaults to HOST_BASE_URL env or localhost:8080)
+ * @param hostBaseUrl - Base URL of the host application (defaults to HOST_BASE_URL env or localhost:8180)
  * @param request - Optional incoming HTTP request. The SDK extracts the Authorization header
  *   and forwards it to all host API calls, so the plugin acts on behalf of the logged-in user.
  */

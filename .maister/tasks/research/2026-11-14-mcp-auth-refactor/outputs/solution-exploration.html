@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solution Exploration — MCP auth refactor</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+/* crumbs + tiles */
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+/* extensions */
+header .meta { color:var(--dim); font-size:13px; }
+.tldr ul { margin:6px 0 10px 18px; padding:0; }
+.tldr h3 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:14px 0 4px; }
+.toc { font-size:13px; color:var(--dim); margin:10px 0 0; }
+.alts { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px; margin:12px 0; }
+.alt { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; font-size:13px; }
+.alt.rec { border:2px solid var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.alt h4 { margin:0 0 6px; font-size:14px; }
+.alt p { margin:4px 0; }
+.alt .lbl { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+.alt .eff { margin-top:6px; font-size:12px; color:var(--dim); }
+.why { color:var(--dim); font-size:13px; }
+tr.rec td { background:var(--accent-soft); font-weight:600; }
+.area { margin-top:34px; }
+.area h2 { border-bottom:1px solid var(--border); padding-bottom:6px; }
+.common { background:var(--ok-soft); border:1px solid var(--border); border-radius:var(--radius); padding:10px 14px; font-size:13px; margin:10px 0; }
+.wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+
+<nav class="crumbs">
+  <a href="../dashboard.html">&larr; Dashboard</a>
+  <a href="research-report.html">Report</a>
+  <span class="here">Exploration</span>
+  <a href="high-level-design.html">Design</a>
+  <a href="decision-log.html">Decision Log</a>
+  <a href="solution-exploration.md" target="_blank" rel="noopener" class="md">md twin &#8599;</a>
+</nav>
+
+<header>
+  <span class="badge">Solution exploration</span>
+  <h1>MCP auth refactor: replacing token passthrough</h1>
+  <div class="meta">Research task <code>2026-11-14-mcp-auth-refactor</code> &middot; generated 2026-11-14 &middot; branch <code>feat/mcp-auth-refactor</code></div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b>8</b><span>decision areas</span></div>
+  <div class="tile"><b>29</b><span>alternatives explored</span></div>
+  <div class="tile"><b>13</b><span>open questions merged</span></div>
+  <div class="tile"><b>P1</b><span>recommended package</span></div>
+  <div class="tile"><b>High</b><span>overall confidence</span></div>
+</div>
+
+<section class="tldr card">
+  <h3>TL;DR</h3>
+  <ul>
+    <li>The overall direction is settled: introspection inbound, RFC 8693 exchange outbound, <code>aud</code> enforced at both resource servers, custom AS extended. What is left is the parameters. Thirteen open questions (D-1..D-13) are merged into <b>8 decision areas</b> with 29 alternatives.</li>
+    <li><b>Recommended combination: "course-aligned, secure minimum".</b> URI audiences with a lenient default. Host-API audience mintable <b>only</b> through exchange. Hierarchical <code>mcp:*</code> scopes normalised at issuance and kept in T2, with the intersection applied at both grants. A hand-written <code>TokenExchangeClient</code> plus the principal in <code>McpTransportContext</code>. No caching and HS256 kept. Delegation via an implicit <code>act</code>. An env-seeded confidential client. Bundle three same-touch follow-ups (FU-3 logs, FU-5 local defaults, refresh-token client binding).</li>
+    <li>One new gap found while brainstorming (DA-2): if the AS lets the authorization-code grant request <code>resource = host API</code>, an MCP client can mint a token that <code>/api</code> accepts directly. The recommendation closes it at issuance.</li>
+    <li>Confidence: High overall. Medium on DA-1 (real clients' <code>resource</code> behaviour) and DA-4 (wiring style).</li>
+  </ul>
+  <h3>Key Decisions</h3>
+  <ul>
+    <li><b>DA-1 Audience model: URI audiences, lenient default.</b> MCP <code>aud</code> = <code>aj.mcp.base-url</code> (local default <code>http://localhost:8081</code>). Host API <code>aud</code> = <code>${issuer}/api</code>. A missing <code>resource</code> defaults to the MCP URI with a warning. This satisfies P-05/J-08/J-16 without breaking clients that omit <code>resource</code>.</li>
+    <li><b>DA-2 Host enforcement: audience gate + per-grant resource policy.</b> <code>/api</code> requires <code>iss</code> and <code>aud</code> = host API. Only the exchange grant can mint the host-API audience. This closes the auth-code&rarr;<code>/api</code> shortcut without a matcher change.</li>
+    <li><b>DA-3 Scope model: hierarchical <code>mcp:*</code>, normalised at issuance, kept in T2, intersected at both grants.</b> MCP-14 is met with no host matcher change. T2 stays distinguishable from T0, and the <code>viewer</code>&rarr;<code>mcp:edit</code> escalation (F6) is fixed in both grants.</li>
+    <li><b>DA-4 Outbound + principal: hand-written <code>TokenExchangeClient</code> + validated <code>Authentication</code> in <code>McpTransportContext</code>.</b> One small class with no hidden Spring defaults. It respects the SDK's <code>boundedElastic</code> model and matches the course name (L07).</li>
+    <li><b>DA-5 Validation, caching, keys: introspection without cache, exchange without cache, HS256 kept.</b> This gives immediate revocation, means the MCP server never holds a key, and is what the course and team standard prescribe. JWKS stays the upgrade path (FU-6).</li>
+    <li><b>DA-6 Delegation: implicit <code>act: {sub: &lt;mcp client_id&gt;}</code> added by the AS.</b> It costs nothing extra (I7) and is auditable (X-15).</li>
+    <li><b>DA-7 Client auth + seeding: <code>client_secret_basic</code> + <code>client_secret_post</code> through one <code>ClientAuthenticator</code>, client upserted at startup from <code>AJ_OAUTH_CLIENT_ID/SECRET</code>.</b> No committed hash, works in every Liquibase context, one client registry.</li>
+    <li><b>DA-8 Bundled follow-ups: "same-touch hygiene".</b> FU-3 (token logging, same file as the exchange branch), FU-5 (local default URLs and env wiring, needed for <code>aud</code>), FU-2a (refresh-token client binding only, same struct that gains <code>resource</code>).</li>
+  </ul>
+  <h3>Open Questions / Risks</h3>
+  <ul>
+    <li><span class="sev warning">warning</span><b>What Claude actually sends as <code>resource</code></b> is unverified (Appendix B of the report). If it always sends it, DA-1 could go strict. If it sends a value with a trailing slash or a path, exact-match comparison breaks. Normalisation rules need a test.</li>
+    <li><span class="sev warning">warning</span><b>DA-2 gap (new inference, Medium-High).</b> It applies only if the resource registry (H2) accepts the host-API URI on <code>/oauth2/authorize</code>. Verify against the final H2 design.</li>
+    <li><span class="sev info">info</span><b>Scope normalisation (DA-3) changes the token response's <code>scope</code> field</b> (a client asking for <code>mcp:edit</code> receives <code>mcp:read mcp:edit</code>). This is allowed by OAuth 2.1 (the AS may issue a different scope and must then return it), but has not been checked against Claude's client behaviour.</li>
+    <li><span class="sev warning">warning</span><b>The principal hand-off in DA-4 relies on the MCP SDK's <code>contextExtractor</code> running on the servlet thread after the security filter chain</b> (I5, High on the SDK bytecode, untested end-to-end).</li>
+    <li><span class="sev info">info</span><b>Two extra local HTTP calls per tool call</b> (introspect + exchange) are reasoned to be cheap but were not measured.</li>
+    <li><span class="sev info">info</span><b>The exercise baseline (<code>bd4de70</code>) is pinned by tests.</b> Six MCP test classes assert passthrough and must be rewritten in the same change.</li>
+  </ul>
+</section>
+
+<nav class="toc">Contents:
+  <a href="#reframing">Problem reframing</a> &middot;
+  <a href="#da1">DA-1</a> &middot; <a href="#da2">DA-2</a> &middot; <a href="#da3">DA-3</a> &middot; <a href="#da4">DA-4</a> &middot;
+  <a href="#da5">DA-5</a> &middot; <a href="#da6">DA-6</a> &middot; <a href="#da7">DA-7</a> &middot; <a href="#da8">DA-8</a> &middot;
+  <a href="#packages">Packages</a> &middot; <a href="#recommended">Recommended</a> &middot; <a href="#whynot">Why not</a> &middot; <a href="#deferred">Deferred</a>
+</nav>
+
+<main>
+
+<section id="reframing" class="area">
+  <h2>Problem reframing</h2>
+  <div class="card">
+    <b>Research question.</b> How should the aj MCP server authenticate to the aj host backend without forwarding the MCP client's bearer token, in line with the MCP Authorization spec (2026-07-28), OAuth 2.1 and RFCs 8693, 7662, 8707, 9068, 9728 and 9700?<br>
+    <span class="why"><b>Settled by Phase 1 (not reopened here):</b> validate-then-exchange (A1 + A2a + A3). A4 (client credentials + user header), A2b (shared-HMAC local validation) and A5 (SAS/Keycloak migration) are rejected. A6 (DPoP/mTLS) is deferred. See <a href="research-report.html">research report</a> §6–§7.</span>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>#</th><th>How might we&hellip;</th><th>Evidence</th><th>Area</th></tr>
+    <tr><td>HMW-1</td><td>give every token a single, unambiguous audience while staying compatible with MCP clients that may not send <code>resource</code> yet?</td><td>I1, I8, P-05, J-08, J-16, App. B</td><td>DA-1</td></tr>
+    <tr><td>HMW-2</td><td>make the host refuse every token that was not minted for it, without rewriting the centralised <code>SecurityConfiguration</code> matchers?</td><td>F4, B-04, O-14, D-8</td><td>DA-2</td></tr>
+    <tr><td>HMW-3</td><td>satisfy the new scope-hierarchy MUST and close the <code>viewer</code>&rarr;<code>mcp:edit</code> escalation, while keeping MCP-originated calls distinguishable at the host?</td><td>F6, I3, MCP-14, K11, D-6/11/13</td><td>DA-3</td></tr>
+    <tr><td>HMW-4</td><td>get the validated principal and a fresh backend token into tool handlers that run on <code>boundedElastic</code>, without static state or hidden framework defaults?</td><td>F2, F3, I5, K9, D-4/5</td><td>DA-4</td></tr>
+    <tr><td>HMW-5</td><td>validate inbound tokens and obtain backend tokens with immediate revocation, at minimum key-management cost?</td><td>I2, I6, F7, D-1/10/12</td><td>DA-5</td></tr>
+    <tr><td>HMW-6</td><td>let the backend tell relayed calls from direct ones at the lowest client-side cost?</td><td>I7, X-15, MCP-34, D-7</td><td>DA-6</td></tr>
+    <tr><td>HMW-7</td><td>give the MCP server a confidential-client identity that works in every environment without committing secrets?</td><td>F5, F7, H3/H4, D-9</td><td>DA-7</td></tr>
+    <tr><td>HMW-8</td><td>use the files this change already touches to close cheap pre-existing MUST violations, without turning the task into an AS-wide hardening sweep?</td><td>§9 FU-2..FU-5, compliance rows 16, 19, 32</td><td>DA-8</td></tr>
+  </table></div>
+  <h3 style="font-size:14px;margin-top:18px">Open questions &rarr; decision areas</h3>
+  <div class="wrap"><table>
+    <tr><th>Decision area</th><th>Covers</th><th>Why merged</th></tr>
+    <tr><td>DA-1 Audience model</td><td>D-2, D-3</td><td>Values and defaults are one choice: the default must be one of the canonical values</td></tr>
+    <tr><td>DA-2 Host-side enforcement</td><td>D-8</td><td>Kept separate: it is the reverse-path guarantee (I1)</td></tr>
+    <tr><td>DA-3 Scope model</td><td>D-6, D-11, D-13</td><td>Hierarchy, T2 representation and intersection placement all change the same scope-computation function</td></tr>
+    <tr><td>DA-4 Outbound client + principal</td><td>D-4, D-5</td><td>The Spring provider only works cleanly with <code>immediateExecution(true)</code>, so they are coupled</td></tr>
+    <tr><td>DA-5 Validation, caching, keys</td><td>D-1, D-10, D-12</td><td>Introspection is what makes HS256 acceptable (I2). Both caches share the same revocation trade-off (I6)</td></tr>
+    <tr><td>DA-6 Delegation semantics</td><td>D-7</td><td>Standalone</td></tr>
+    <tr><td>DA-7 Client auth + seeding</td><td>D-9</td><td>Standalone</td></tr>
+    <tr><td>DA-8 Bundled follow-ups</td><td>FU-2..FU-5</td><td>Scope decision for the implementation task</td></tr>
+  </table></div>
+  <p class="why"><b>Evaluation perspectives</b> used in every area. <b>Feasibility</b>: effort on host and MCP, technology maturity. <b>User impact</b>: MCP-client end users (Claude), course students and developers running <code>start-dev</code>. <b>Simplicity</b>: moving parts, hidden defaults, maintenance. <b>Risk</b>: security residue, regressions, reversibility. <b>Scalability/extensibility</b>: the path to JWKS, more resources, more MCP servers, production. Ratings use High / Med / Low (for Risk, Low is good).</p>
+</section>
+
+<!-- DA-1 -->
+<section id="da1" class="area">
+  <h2>DA-1 Audience model <span class="badge">D-2 + D-3</span></h2>
+  <p class="why">Audience is the missing primitive (I1). The value in PRM <code>resource</code>, the value clients send as RFC 8707 <code>resource</code>, the T1 <code>aud</code> and the MCP introspection check must be byte-identical (P-05, I8). J-08 requires the AS to pick a default when <code>resource</code> is absent. J-16 requires distinct audiences per resource.</p>
+  <div class="alts">
+    <div class="alt rec"><h4>1A URI audiences, lenient default <span class="badge">recommended</span></h4>
+      <p>MCP <code>aud</code> = <code>aj.mcp.base-url</code> (no trailing slash, local default <code>http://localhost:8081</code>). Host API <code>aud</code> = <code>${issuer}/api</code>. When <code>resource</code> is omitted on <code>/oauth2/authorize</code>/<code>/oauth2/token</code>, the AS defaults to the MCP URI (the only resource where <code>mcp:*</code> scopes mean anything, J-05) and logs a warning. Unknown values return <code>invalid_target</code>.</p>
+      <p><span class="lbl">Strengths</span> Spec-native (RFC 8707 requires absolute URIs, and PRM <code>resource</code> is a URI). Works with clients that do not send <code>resource</code>. One property drives PRM, the 401 challenge and the <code>aud</code> check.</p>
+      <p><span class="lbl">Weaknesses</span> The default is implicit, so a misconfigured client still gets an MCP token. URI comparison needs normalisation rules (trailing slash, case of host).</p>
+      <p><span class="lbl">Best when</span> Real-client behaviour is unknown, and a local-first showcase must work out of the box.</p>
+      <p><span class="lbl">Evidence</span> Report D-2/D-3 leans; I8; J-05, J-08, J-16; F14 (external defaults).</p>
+      <div class="eff">Effort: Low (host), Low (MCP)</div></div>
+    <div class="alt"><h4>1B URI audiences, strict</h4>
+      <p>Same values, but no default: <code>invalid_target</code> when <code>resource</code> is missing, so every client must send it.</p>
+      <p><span class="lbl">Strengths</span> No implicit behaviour. Matches MCP-18 (clients MUST send <code>resource</code>). Easiest to reason about in an audit.</p>
+      <p><span class="lbl">Weaknesses</span> Any client that does not send <code>resource</code> yet fails at authorisation. That is a breaking change for the course demo if Claude omits it (unverified). J-08 still asks for a defined default policy, and a reject policy is a defensible reading.</p>
+      <p><span class="lbl">Best when</span> Real clients are verified to send <code>resource</code>, or after a deprecation window.</p>
+      <p><span class="lbl">Evidence</span> MCP-18; App. B (client behaviour unknown).</p>
+      <div class="eff">Effort: Low / Low</div></div>
+    <div class="alt"><h4>1C Logical audience identifiers</h4>
+      <p>The AS keeps a registry mapping each resource URI to a logical <code>aud</code> (<code>aj-mcp</code>, <code>aj-api</code>). Tokens carry stable logical names that are independent of host and port.</p>
+      <p><span class="lbl">Strengths</span> Tokens survive URL changes (tunnels, Cloudflare). It mirrors Auth0's "API identifier" style.</p>
+      <p><span class="lbl">Weaknesses</span> An extra mapping layer. The MCP server must compare against a value that differs from its PRM <code>resource</code>, which weakens the "one property" invariant (I8). Spring's audience validators assume a URI or string equality, so the custom mapping lives on both sides.</p>
+      <p><span class="lbl">Best when</span> The deployment URL changes often (public tunnel), or several URLs front one logical resource.</p>
+      <p><span class="lbl">Evidence</span> F10 (Auth0 identifiers); C14 (tunnel deployment in L06).</p>
+      <div class="eff">Effort: Medium / Low</div></div>
+    <div class="alt"><h4>1D Host API audience = issuer</h4>
+      <p>Host API <code>aud</code> = <code>${issuer}</code>, MCP = <code>aj.mcp.base-url</code>. One fewer configured value: the host's own origin serves as both issuer and API audience.</p>
+      <p><span class="lbl">Strengths</span> The simplest configuration, and natural for a single-origin monolith.</p>
+      <p><span class="lbl">Weaknesses</span> It conflates the AS identity with the RS identity (J-16 distinctness is weakened). If the AS ever moves out (SAS, Keycloak; FU-9), every T0/T2 <code>aud</code> changes.</p>
+      <p><span class="lbl">Best when</span> The AS and API are permanently co-located and never split.</p>
+      <p><span class="lbl">Evidence</span> Report D-2 (<code>${issuer}</code> vs <code>${issuer}/api</code>); J-16.</p>
+      <div class="eff">Effort: Low / Low</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr class="rec"><td>1A</td><td>High</td><td>High (works if <code>resource</code> omitted)</td><td>High</td><td>Low-Med (implicit default)</td><td>High</td><td>Compatibility over strictness</td></tr>
+    <tr><td>1B</td><td>High</td><td>Low-Med (breaks non-sending clients)</td><td>High</td><td>Low</td><td>High</td><td>Strictness over compatibility</td></tr>
+    <tr><td>1C</td><td>Med</td><td>High</td><td>Low (mapping layer)</td><td>Med (breaks "one property")</td><td>High (URL-agnostic)</td><td>Portability over the invariant</td></tr>
+    <tr><td>1D</td><td>High</td><td>High</td><td>High</td><td>Med (AS/RS conflation)</td><td>Low (breaks on AS split)</td><td>Fewer values over separability</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-2 -->
+<section id="da2" class="area">
+  <h2>DA-2 Host-side enforcement strictness <span class="badge">D-8</span></h2>
+  <p class="why">Without a host-side <code>aud</code> check, exchange is pointless: T1 could still be replayed at <code>/api</code> (I1, B-04). D-8 also asks whether <code>PERMISSION_mcp:*</code> should require an MCP actor. While brainstorming one more path surfaced. H2 introduces a resource registry containing <b>both</b> the MCP URI and the host-API URI. If <code>/oauth2/authorize</code> accepts <code>resource = host API</code>, an MCP client can obtain a token with <code>aud</code> = host API and <code>mcp:*</code> scopes. <code>/api</code> would accept it, and the MCP server would be bypassed entirely (inference from H2 + S3, Medium-High).</p>
+  <div class="alts">
+    <div class="alt"><h4>2A Audience gate only</h4>
+      <p><code>JwtAuthenticationFilter</code> requires a configured <code>iss</code> and <code>aud</code> &ni; host API. T0 gets <code>aud</code> = host API. Matchers are unchanged.</p>
+      <p><span class="lbl">Strengths</span> Required by B-04/O-14 in every option. Minimal change.</p>
+      <p><span class="lbl">Weaknesses</span> Leaves the auth-code&rarr;host-API shortcut above open if the registry allows it. Accountability rests only on <code>act</code> being present by convention.</p>
+      <div class="eff">Effort: Low</div></div>
+    <div class="alt rec"><h4>2B Audience gate + per-grant resource policy <span class="badge">recommended</span></h4>
+      <p>2A, plus the AS rule "the host-API audience can only be issued by the token-exchange grant, to the MCP confidential client; authorization-code and refresh grants accept only the MCP resource". T0 is minted by <code>/api/auth/login</code>, which is not an OAuth grant, so it is unaffected.</p>
+      <p><span class="lbl">Strengths</span> Closes the shortcut at issuance, the cheapest place. It needs no matcher or authority-mapping change and generalises (each resource lists which grants may target it). It mirrors I4: the exchange rule already ties the MCP client to the MCP resource.</p>
+      <p><span class="lbl">Weaknesses</span> One more policy table in the AS. A future first-party OAuth client that legitimately needs host-API tokens would need an explicit entry.</p>
+      <div class="eff">Effort: Low</div></div>
+    <div class="alt"><h4>2C Audience gate + actor requirement on <code>mcp:*</code></h4>
+      <p>2A, plus <code>JwtAuthenticationFilter</code> grants <code>PERMISSION_mcp:*</code> only when the token has <code>act.sub</code> (or <code>client_id</code>) = the MCP server client. Scopes in any other token are dropped.</p>
+      <p><span class="lbl">Strengths</span> Defence at the resource itself. It holds even if issuance policy is misconfigured, and directly encodes "MCP scopes are only valid when relayed by the MCP server" (MCP-34).</p>
+      <p><span class="lbl">Weaknesses</span> Couples the host RS to a specific client id (config). It is less general than 2B for future resources. It changes authority mapping, which is security-critical code with no HTTP-level tests today (P7).</p>
+      <div class="eff">Effort: Low-Medium</div></div>
+    <div class="alt"><h4>2D 2B + 2C (defence in depth)</h4>
+      <p>Both rules.</p>
+      <p><span class="lbl">Strengths</span> Either rule alone closes the shortcut, so a bug in one is caught by the other.</p>
+      <p><span class="lbl">Weaknesses</span> Two places to keep consistent. Disproportionate for a local-only showcase.</p>
+      <div class="eff">Effort: Medium</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr><td>2A</td><td>High</td><td>Neutral</td><td>High</td><td>Med (auth-code&rarr;API shortcut)</td><td>Med</td><td>Minimal but leaves a hole</td></tr>
+    <tr class="rec"><td>2B</td><td>High</td><td>Neutral</td><td>High</td><td>Low</td><td>High (per-resource rules)</td><td>Fix at issuance</td></tr>
+    <tr><td>2C</td><td>High</td><td>Neutral</td><td>Med</td><td>Low</td><td>Med (hard-wired client id)</td><td>Fix at the resource</td></tr>
+    <tr><td>2D</td><td>Med</td><td>Neutral</td><td>Low</td><td>Very low</td><td>Med</td><td>Defence in depth vs two rules</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-3 -->
+<section id="da3" class="area">
+  <h2>DA-3 Scope model <span class="badge">D-6 + D-11 + D-13</span></h2>
+  <p class="why">MCP-14 (new MUST in 2026-07-28) requires the server to account for scope hierarchies. Today an <code>mcp:edit</code>-only token cannot GET at the host (<code>SecurityConfiguration.java:106-107</code>). The intersection with user permissions must ship with exchange, or F6 becomes systemic (I3). The team standard says "map <code>mcp:read</code>&rarr;READ", while the lean is "keep <code>mcp:*</code>" (K11).</p>
+  <div class="common"><b>Common to all alternatives (High confidence, D-13):</b> intersect scopes with the user's permissions at <b>both</b> the authorization-code grant (fixes F6 at the source) and the exchange grant (uses the user's <i>current</i> permissions, so a permission revoked after consent takes effect within one tool call). Mapping: <code>mcp:read</code>&harr;<code>READ</code>, <code>mcp:edit</code>&harr;<code>EDIT</code>. Unknown scopes are dropped.</div>
+  <div class="alts">
+    <div class="alt rec"><h4>3A Hierarchical <code>mcp:*</code>, normalised at issuance, kept in T2 <span class="badge">recommended</span></h4>
+      <p>Document <code>mcp:edit</code> &sup; <code>mcp:read</code>. The AS expands <code>mcp:edit</code> to <code>mcp:read mcp:edit</code> when issuing T1 and T2 (after intersection), and returns the issued <code>scope</code>. The MCP per-tool check and the host matchers stay flat exact-match checks. T2 keeps <code>mcp:*</code>, so it remains distinguishable from T0.</p>
+      <p><span class="lbl">Strengths</span> Meets MCP-14 explicitly. No matcher change. The hierarchy lives in one function in the AS. Edit-only tokens can list again. Keeps accountability (K11).</p>
+      <p><span class="lbl">Weaknesses</span> Issued <code>scope</code> differs from requested, which is legal but visible to clients. It diverges from the team-standard wording (<code>mcp:*</code>&rarr;READ/EDIT), so the standard needs a one-line update.</p>
+      <p><span class="lbl">Evidence</span> MCP-14, K11, <code>SecurityConfiguration.java:106-120</code>.</p>
+      <div class="eff">Effort: Low (host), Low (MCP)</div></div>
+    <div class="alt"><h4>3B Independent scopes, documented</h4>
+      <p>No hierarchy: tools require exact scopes, and a client must request <code>mcp:read mcp:edit</code> to get both. The MCP docs and PRM say so. T2 keeps <code>mcp:*</code>.</p>
+      <p><span class="lbl">Strengths</span> Zero hierarchy logic, and arguably MCP-14 compliant ("accounted for: there is none").</p>
+      <p><span class="lbl">Weaknesses</span> Edit-only tokens cannot list products, which is surprising UX. Compliance rests on documentation, not behaviour. The course's least-privilege examples assume read-for-edit.</p>
+      <div class="eff">Effort: Very low</div></div>
+    <div class="alt"><h4>3C Translate to READ/EDIT in T2</h4>
+      <p>Team-standard wording. The exchange issues T2 with <code>permissions: [READ, EDIT]</code> (as in T0) derived from scopes &cap; permissions. Host <code>mcp:*</code> alternatives in the matchers can eventually be removed. The hierarchy is handled by the permission model.</p>
+      <p><span class="lbl">Strengths</span> Matches the written team standard. The host has one authority vocabulary. Matchers get simpler over time.</p>
+      <p><span class="lbl">Weaknesses</span> T2 becomes indistinguishable from T0 at the authority level, so accountability rests solely on <code>act</code>/<code>client_id</code> (MCP-34). It needs matcher clean-up to deliver its benefit, and the hierarchy at the MCP server must still be coded separately.</p>
+      <p><span class="lbl">Evidence</span> <code>standards/mcp-server/conventions.md:15</code>; K11.</p>
+      <div class="eff">Effort: Low-Medium (host)</div></div>
+    <div class="alt"><h4>3D Hierarchy at the resource servers</h4>
+      <p>Tokens carry exactly what was granted. The MCP server treats <code>mcp:edit</code> as satisfying <code>mcp:read</code>. The host adds <code>PERMISSION_mcp:edit</code> to every GET matcher.</p>
+      <p><span class="lbl">Strengths</span> Tokens stay minimal and literal. The hierarchy is visible where it is enforced.</p>
+      <p><span class="lbl">Weaknesses</span> The hierarchy is duplicated in two codebases. Host matchers grow, against the standard's "no redundant matchers". Easy to drift.</p>
+      <div class="eff">Effort: Low-Medium</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr class="rec"><td>3A</td><td>High</td><td>High (edit implies read)</td><td>High (one function)</td><td>Low</td><td>High</td><td>Issued scope &ne; requested</td></tr>
+    <tr><td>3B</td><td>High</td><td>Low (edit-only can't list)</td><td>Very high</td><td>Med (compliance by docs)</td><td>Med</td><td>Simplicity over UX</td></tr>
+    <tr><td>3C</td><td>Med</td><td>High</td><td>Med (until matcher clean-up)</td><td>Med (T2 &asymp; T0 by authority)</td><td>High</td><td>One vocabulary over distinguishability</td></tr>
+    <tr><td>3D</td><td>Med</td><td>High</td><td>Low (duplicated)</td><td>Med (drift)</td><td>Low</td><td>Literal tokens over single source</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-4 -->
+<section id="da4" class="area">
+  <h2>DA-4 Outbound client + principal propagation <span class="badge">D-4 + D-5</span></h2>
+  <p class="why">Tools run on <code>boundedElastic</code> (F3), so <code>SecurityContextHolder</code> is empty. The current static <code>ThreadLocal</code> is never cleared (V7). Spring's client defaults have three pitfalls: an opaque principal is not an <code>OAuth2Token</code>, the principal resolver reads <code>SecurityContextHolder</code>, and the cache is keyed by principal name, which leaks scope between MCP clients of one user (K9).</p>
+  <div class="alts">
+    <div class="alt rec"><h4>4A Hand-written <code>TokenExchangeClient</code> + <code>McpTransportContext</code> <span class="badge">recommended</span></h4>
+      <p>The <code>contextExtractor</code> (servlet thread, after the filter chain) stores the validated <code>Authentication</code>, including the inbound token value as a credential and never a header string. Tool handlers read it from the context, check scope, call <code>TokenExchangeClient.exchange(subjectToken)</code> (one form POST on <code>RestClient</code>), and pass T2 explicitly to the <code>AjApiClient</code> call.</p>
+      <p><span class="lbl">Strengths</span> No hidden defaults or caches, and one small, testable class. It keeps the SDK's async model. Explicit data flow makes the "outbound &ne; inbound" regression test trivial. It uses the course's class name (L07).</p>
+      <p><span class="lbl">Weaknesses</span> Hand-written OAuth client code (error parsing, <code>issued_token_type</code> check). It touches <code>AjApiClient</code> signatures or adds a per-call token parameter.</p>
+      <p><span class="lbl">Evidence</span> K9, I5, F3; report D-4(a)/D-5(a).</p>
+      <div class="eff">Effort: Low-Medium (MCP)</div></div>
+    <div class="alt"><h4>4B Spring provider + interceptor + <code>immediateExecution(true)</code></h4>
+      <p><code>TokenExchangeOAuth2AuthorizedClientProvider</code> + <code>OAuth2ClientHttpRequestInterceptor</code>. Tools run on the servlet thread, so <code>SecurityContextHolder</code> works. Configure a custom subject-token resolver, a <code>resource</code> parameter converter, and a non-caching or token-hash-keyed authorized-client repository.</p>
+      <p><span class="lbl">Strengths</span> Framework-supported grant mechanics and error handling. Least custom OAuth code. Familiar to Spring developers.</p>
+      <p><span class="lbl">Weaknesses</span> Three non-default overrides, any of which silently reintroduces a bug if missed (K9). It changes the SDK execution model (blocking servlet threads). Spring behaviour is inferred, not tested (Medium-High). It adds the client starter dependency.</p>
+      <p><span class="lbl">Evidence</span> F11, K9, C12.</p>
+      <div class="eff">Effort: Medium (MCP)</div></div>
+    <div class="alt"><h4>4C Hybrid: Spring provider invoked explicitly</h4>
+      <p>Keep 4A's propagation, but call <code>OAuth2AuthorizedClientManager.authorize(...)</code> with an explicit principal and attributes instead of a hand-written POST. No interceptor.</p>
+      <p><span class="lbl">Strengths</span> Framework grant mechanics without depending on <code>SecurityContextHolder</code>.</p>
+      <p><span class="lbl">Weaknesses</span> You still need the custom subject resolver and the non-caching repository, so most of 4B's configuration surface remains for little gain over one form POST.</p>
+      <div class="eff">Effort: Medium</div></div>
+    <div class="alt"><h4>4D Hand-written + <code>immediateExecution(true)</code> + holder cleared in <code>finally</code></h4>
+      <p>This keeps the current code's shape (a holder read by an interceptor), but the holder contains T2 and is always cleared.</p>
+      <p><span class="lbl">Strengths</span> The smallest diff to services and <code>RestClientConfig</code>. Interceptor-based, so <code>AjApiClient</code> is untouched.</p>
+      <p><span class="lbl">Weaknesses</span> Keeps implicit thread-bound state, which is the pattern that caused V7. It changes the execution model, and a missed <code>finally</code> leaks T2 between requests on pooled threads.</p>
+      <div class="eff">Effort: Low</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr class="rec"><td>4A</td><td>High</td><td>Neutral (same tool behaviour)</td><td>High</td><td>Low</td><td>Med (add cache later if measured)</td><td>Own code over framework</td></tr>
+    <tr><td>4B</td><td>Med</td><td>Neutral</td><td>Low (3 overrides)</td><td>Med-High (silent defaults)</td><td>High</td><td>Framework over explicitness</td></tr>
+    <tr><td>4C</td><td>Med</td><td>Neutral</td><td>Med</td><td>Med</td><td>High</td><td>Half the framework, most of its configuration</td></tr>
+    <tr><td>4D</td><td>High</td><td>Neutral</td><td>Med</td><td>Med (thread-bound state)</td><td>Med</td><td>Smallest diff over clean flow</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-5 -->
+<section id="da5" class="area">
+  <h2>DA-5 Inbound validation, caching and keys <span class="badge">D-1 + D-10 + D-12</span></h2>
+  <p class="why">Introspection decouples key management from this refactor (I2). On a localhost hop, caching is a security decision, not a performance one (I6). MCP 2026-07-28 is stateless, so every HTTP request re-authenticates (F8).</p>
+  <div class="alts">
+    <div class="alt rec"><h4>5A Introspection + exchange, no caches, HS256 kept <span class="badge">recommended</span></h4>
+      <p><code>opaqueToken()</code> against <code>/oauth2/introspect</code> with an <code>aud</code>-checking introspector wrapper, and one exchange per tool call.</p>
+      <p><span class="lbl">Strengths</span> Immediate revocation, and the MCP server never holds a key. It is exactly the course (L07) and the team standard. Nothing to invalidate.</p>
+      <p><span class="lbl">Weaknesses</span> Two local HTTP calls per tool call (unmeasured). The host is a hard dependency, so an outage means 401 (fail closed, which is intended).</p>
+      <p><span class="lbl">Evidence</span> I2, I6, I-15, F13; report D-1(a), D-10, D-12.</p>
+      <div class="eff">Effort: Low-Medium (host endpoint), Low (MCP)</div></div>
+    <div class="alt"><h4>5B Short-TTL caches</h4>
+      <p>Introspection cache with a TTL of a few seconds, capped at <code>exp</code>. Exchange cache keyed by SHA-256(T1) + <code>client_id</code>. Bounded store, evicted on backend 401.</p>
+      <p><span class="lbl">Strengths</span> Fewer round trips under bursty tool use (multi-call agent turns). Mirrors Auth0 and MSAL.</p>
+      <p><span class="lbl">Weaknesses</span> Revocation lag. Two cache-key designs to get right, and a wrong key reintroduces scope bleed. Contradicts the team standard "no caching". It solves a latency problem nobody has measured.</p>
+      <p><span class="lbl">Evidence</span> I6, external-patterns-caching §2.</p>
+      <div class="eff">Effort: Medium (MCP)</div></div>
+    <div class="alt"><h4>5C Local JWT (RS256 + JWKS) now</h4>
+      <p>jjwt switches to RS256 with a <code>kid</code>, the AS gets a <code>/oauth2/jwks</code> endpoint, and the MCP server uses <code>jwt()</code> + <code>createAtJwtValidator()</code> + an audience validator. Exchange stays uncached.</p>
+      <p><span class="lbl">Strengths</span> No network call on the inbound path. RFC 9068 native. The industry-typical RS pattern (K8). Unlocks <code>private_key_jwt</code> (FU-7).</p>
+      <p><span class="lbl">Weaknesses</span> Revocation only at <code>exp</code> (15 min). It pulls a key migration into the critical path, touching T0 issuance and every host test, and is not what L07 teaches.</p>
+      <p><span class="lbl">Evidence</span> A2c, F7, J-02/J-09, FU-6.</p>
+      <div class="eff">Effort: Medium (host), Low (MCP)</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr class="rec"><td>5A</td><td>High</td><td>High (instant revocation)</td><td>High</td><td>Low</td><td>Med (2 calls per tool call)</td><td>Freshness over latency</td></tr>
+    <tr><td>5B</td><td>Med</td><td>Med (revocation lag)</td><td>Low</td><td>Med (key design)</td><td>High</td><td>Latency over freshness</td></tr>
+    <tr><td>5C</td><td>Med</td><td>Med (revocation at <code>exp</code>)</td><td>Med</td><td>Med (key migration on the critical path)</td><td>High</td><td>Offline validation over scope</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-6 -->
+<section id="da6" class="area">
+  <h2>DA-6 Delegation semantics <span class="badge">D-7</span></h2>
+  <p class="why">The confused-deputy vulnerability is that the backend cannot tell relayed calls from direct ones (MCP-34). RFC 8693 offers delegation (<code>act</code>) and impersonation.</p>
+  <div class="alts">
+    <div class="alt rec"><h4>6A Implicit <code>act</code> <span class="badge">recommended</span></h4>
+      <p>The AS adds <code>act: {sub: &lt;mcp client_id&gt;}</code> from the authenticated client, with no <code>actor_token</code>.</p>
+      <p><span class="lbl">Strengths</span> Costs nothing extra, since the AS already knows the caller (I7). Matches Auth0 OBO (<code>act.sub</code> = <code>azp</code>) and SAS. Auditable at the host. X-15 compliant.</p>
+      <p><span class="lbl">Weaknesses</span> The actor is asserted by client authentication rather than a separate proof. For a single confidential client these are equivalent.</p>
+      <div class="eff">Effort: Very low</div></div>
+    <div class="alt"><h4>6B Impersonation</h4>
+      <p><code>sub</code> = user, <code>client_id</code> = MCP server, no <code>act</code>.</p>
+      <p><span class="lbl">Strengths</span> The simplest token. The host sees an ordinary user token.</p>
+      <p><span class="lbl">Weaknesses</span> Accountability rests on <code>client_id</code> alone, a non-standard signal for "acting on behalf of". Tooling and audit that look for <code>act</code> find nothing.</p>
+      <div class="eff">Effort: Very low</div></div>
+    <div class="alt"><h4>6C Explicit <code>actor_token</code></h4>
+      <p>The MCP server first gets its own token via <code>client_credentials</code> and sends it as <code>actor_token</code> in the exchange. The AS validates it and copies its <code>sub</code> into <code>act</code>.</p>
+      <p><span class="lbl">Strengths</span> The most literal RFC 8693 delegation. The actor proof is a token, which generalises to multi-hop chains (nested <code>act</code>).</p>
+      <p><span class="lbl">Weaknesses</span> Needs a new <code>client_credentials</code> grant (F5: none today) and a second token request per exchange or a cached actor token. A lot of machinery for the same claim 6A produces.</p>
+      <div class="eff">Effort: Medium (host + MCP)</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr class="rec"><td>6A</td><td>High</td><td>Neutral</td><td>High</td><td>Low</td><td>High</td><td>Actor by client auth</td></tr>
+    <tr><td>6B</td><td>High</td><td>Neutral</td><td>Very high</td><td>Med (weak accountability)</td><td>Med</td><td>Simplicity over audit</td></tr>
+    <tr><td>6C</td><td>Low-Med</td><td>Neutral</td><td>Low</td><td>Low</td><td>High (multi-hop)</td><td>Literal RFC over effort</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-7 -->
+<section id="da7" class="area">
+  <h2>DA-7 MCP server client authentication and provisioning <span class="badge">D-9</span></h2>
+  <p class="why">Introspection must require an authenticated caller (I-03), and exchange must be restricted to the client bound to the MCP resource (I4). Today client authentication is inline and reads only the <code>client_secret</code> form field, even though <code>client_secret_basic</code> is advertised (F5, P8). No confidential client is seeded. The committed default <code>APP_JWT_SECRET</code> (F7) shows how secrets drift into the repo.</p>
+  <div class="alts">
+    <div class="alt rec"><h4>7A <code>ClientAuthenticator</code> + env-driven startup upsert <span class="badge">recommended</span></h4>
+      <p>One reusable authenticator (Basic + post, BCrypt) for the auth-code, exchange and introspection paths. On startup the host idempotently upserts <code>aj-mcp-server</code> (grant: token-exchange, scopes <code>mcp:read mcp:edit</code>, bound to the MCP resource), hashing the secret from <code>AJ_OAUTH_CLIENT_ID/SECRET</code>. <code>start-dev</code> sets the same env var for both apps.</p>
+      <p><span class="lbl">Strengths</span> No hash committed, works in every Liquibase context, one client registry. It honours the advertised <code>client_secret_basic</code> (Spring's introspection default). Matches the team standard's env var names.</p>
+      <p><span class="lbl">Weaknesses</span> A startup writer is security code with side effects. Behaviour when the env var is missing must be defined (skip with a warning, or fail fast).</p>
+      <div class="eff">Effort: Low-Medium (host)</div></div>
+    <div class="alt"><h4>7B Liquibase <code>dev</code>-context changeset</h4>
+      <p>The BCrypt hash of a known dev secret goes into a <code>dev</code>-context changeset.</p>
+      <p><span class="lbl">Strengths</span> Declarative and follows the existing sample-data convention (context <code>dev</code>). No startup code.</p>
+      <p><span class="lbl">Weaknesses</span> A known secret ends up in the repo (the F7 pattern again). Non-<code>dev</code> contexts need a separate mechanism. Rotating means a new changeset.</p>
+      <div class="eff">Effort: Low</div></div>
+    <div class="alt"><h4>7C Internal clients from configuration</h4>
+      <p><code>app.oauth2.internal-clients.aj-mcp-server.{secret,resource,grants}</code> comes from env. The <code>ClientAuthenticator</code> checks configured clients before the DCR repository. No DB row.</p>
+      <p><span class="lbl">Strengths</span> No seeding, and the resource binding (I4) is declared next to the secret. The simplest at runtime.</p>
+      <p><span class="lbl">Weaknesses</span> Two client registries (config + DB) to keep consistent. DCR could register a colliding <code>client_id</code> unless reserved. It diverges from <code>RegisteredClient</code> as the single model.</p>
+      <div class="eff">Effort: Low</div></div>
+  </div>
+  <p class="why"><i>Not offered: <code>private_key_jwt</code> (RECOMMENDED by B-07/O-04). It depends on asymmetric keys (FU-6) and is deferred as FU-7.</i></p>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr class="rec"><td>7A</td><td>High</td><td>High (dev: one env var)</td><td>Med</td><td>Low</td><td>High</td><td>Startup code over committed secret</td></tr>
+    <tr><td>7B</td><td>High</td><td>High (zero setup)</td><td>High</td><td>Med (known secret in repo)</td><td>Low (dev only)</td><td>Convenience over hygiene</td></tr>
+    <tr><td>7C</td><td>High</td><td>High</td><td>High</td><td>Med (two registries, id collision)</td><td>Med</td><td>Simplicity over a single model</td></tr>
+  </table></div>
+</section>
+
+<!-- DA-8 -->
+<section id="da8" class="area">
+  <h2>DA-8 Scope of bundled follow-ups <span class="badge">FU-2..FU-5</span></h2>
+  <p class="why">Three pre-existing AS-wide MUSTs stay violated after the hop is fixed: B-12 token logging, B-15/O-07 refresh tokens unbound to a client, and O-09 <code>_token</code>. Some of them sit in code this task rewrites anyway, so fixing them later means touching the same lines twice.</p>
+  <div class="alts">
+    <div class="alt"><h4>8A Hop only</h4>
+      <p>Only §8 items. New code logs no tokens (H9). FU-5 is limited to what <code>aud</code> needs.</p>
+      <p><span class="lbl">Strengths</span> The smallest, most reviewable change, and the most faithful to the brief's scope.</p>
+      <p><span class="lbl">Weaknesses</span> <code>OAuth2TokenFilter</code> keeps logging tokens next to brand-new code that doesn't, which is inconsistent within one file. <code>RefreshTokenData</code> gains <code>resource</code> but not <code>client_id</code>.</p>
+      <div class="eff">Effort: baseline</div></div>
+    <div class="alt rec"><h4>8B Hop + same-touch hygiene <span class="badge">recommended</span></h4>
+      <p>8A plus: <b>FU-3</b> (remove token, code, verifier and secret logging in the <code>core/oauth2</code> filters, the same file as H6); <b>FU-5</b> (local defaults for <code>aj.mcp.base-url</code>/AS URL, <code>start-dev</code> env for the client secret and <code>APP_JWT_SECRET</code>, which <code>aud</code> and DA-7 need anyway); <b>FU-2a</b> (store <code>client_id</code> in the refresh data next to <code>resource</code> and reject refresh by a different client; persistence and reuse detection stay deferred).</p>
+      <p><span class="lbl">Strengths</span> Closes B-12 and the client-binding half of B-15/O-07 at almost no marginal cost, because each item edits a structure the hop already changes. All three are mechanical.</p>
+      <p><span class="lbl">Weaknesses</span> A larger diff and a few more tests. FU-3 touches existing log lines that someone may rely on for debugging.</p>
+      <div class="eff">Effort: +Low</div></div>
+    <div class="alt"><h4>8C 8B + <code>_token</code> restriction (FU-4)</h4>
+      <p>Accept <code>_token</code> only on <code>POST /oauth2/authorize</code>.</p>
+      <p><span class="lbl">Strengths</span> Closes every pre-existing MUST on the AS (O-09).</p>
+      <p><span class="lbl">Weaknesses</span> The consent page (<code>OAuth2AuthorizePage.tsx:97-99</code>) depends on it, so there is regression risk in a flow the brief scopes out (host frontend auth). It is not on the MCP hop.</p>
+      <div class="eff">Effort: +Low-Medium</div></div>
+    <div class="alt"><h4>8D Full AS hardening sweep</h4>
+      <p>Adds FU-1 DCR/CIMD, FU-2 persistence and reuse detection, and FU-11.</p>
+      <p><span class="lbl">Strengths</span> One hardening pass.</p>
+      <p><span class="lbl">Weaknesses</span> Scope creep. It turns a hop refactor into an AS rewrite, and the storage decisions (FU-2) deserve their own task.</p>
+      <div class="eff">Effort: High</div></div>
+  </div>
+  <div class="wrap"><table>
+    <tr><th>Alt</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Key trade-off</th></tr>
+    <tr><td>8A</td><td>High</td><td>Neutral</td><td>High</td><td>Med (3 MUSTs open, inconsistent file)</td><td>&mdash;</td><td>Focus over completeness</td></tr>
+    <tr class="rec"><td>8B</td><td>High</td><td>Neutral</td><td>High</td><td>Low</td><td>&mdash;</td><td>Small diff growth, 1.5 MUSTs closed</td></tr>
+    <tr><td>8C</td><td>Med</td><td>Med (consent page risk)</td><td>Med</td><td>Med</td><td>&mdash;</td><td>All MUSTs over brief scope</td></tr>
+    <tr><td>8D</td><td>Low</td><td>Med</td><td>Low</td><td>High (scope creep)</td><td>&mdash;</td><td>Completeness over delivery</td></tr>
+  </table></div>
+</section>
+
+<!-- Packages -->
+<section id="packages" class="area">
+  <h2>Overall packages</h2>
+  <p class="why">How the area choices combine. Legend: Feasibility/User impact/Simplicity/Scalability: High = good. Risk: Low = good.</p>
+  <div class="wrap"><table>
+    <tr><th>Package</th><th>Composition</th><th>Feasibility</th><th>User impact</th><th>Simplicity</th><th>Risk</th><th>Scalability</th><th>Course/standard</th></tr>
+    <tr class="rec"><td>P1 Course-aligned secure minimum (recommended)</td><td>1A, 2B, 3A, 4A, 5A, 6A, 7A, 8B</td><td>High (medium overall effort)</td><td>High</td><td>High</td><td>Low</td><td>Med-High</td><td>L07 + team standard (minus the 3A wording)</td></tr>
+    <tr><td>P2 Spring-native</td><td>1A, 2A, 3C, 4B, 5A, 6A, 7A, 8A</td><td>Med</td><td>High</td><td>Low (framework overrides)</td><td>Med (K9 defaults, 2A hole)</td><td>High</td><td>Standard wording; not the L07 class shape</td></tr>
+    <tr><td>P3 Maximum hardening</td><td>1B, 2D, 3A, 4A, 5C, 6C, 7A, 8C</td><td>Low-Med (high effort)</td><td>Med (strict <code>resource</code>, revocation at <code>exp</code>)</td><td>Low</td><td>Low on the hop, Med on delivery</td><td>High</td><td>Beyond the course</td></tr>
+  </table></div>
+</section>
+
+<!-- Recommended -->
+<section id="recommended" class="area">
+  <h2>Recommended approach: P1 course-aligned secure minimum</h2>
+  <div class="card" style="border:2px solid var(--accent)">
+    <p><b>1A + 2B + 3A + 4A + 5A + 6A + 7A + 8B.</b> P1 meets every MUST on the MCP&harr;host hop (report §5 target column) plus the client-binding half of B-15 and all of B-12. It does so with the least hidden behaviour: no caches, no framework defaults to override, no key migration. It reproduces the course's L07 reference shape (introspecting filter, <code>TokenExchangeClient</code>, host introspection filter, exchange grant) and keeps tool behaviour unchanged, which is L07's success criterion. Each area choice was the lowest-risk option that still fully closes its gap. The one higher-effort choice, 2B's per-grant policy, closes a bypass that the other options leave open.</p>
+    <table>
+      <tr><th>Area</th><th>Recommended</th><th>Confidence</th></tr>
+      <tr><td>DA-1 Audience model</td><td>1A URI audiences (<code>aj.mcp.base-url</code>, <code>${issuer}/api</code>), lenient default to the MCP URI + warning</td><td>Medium-High</td></tr>
+      <tr><td>DA-2 Host enforcement</td><td>2B audience gate + only exchange may mint host-API audience</td><td>Medium-High</td></tr>
+      <tr><td>DA-3 Scope model</td><td>3A hierarchical <code>mcp:*</code> normalised at issuance, kept in T2, intersection at both grants</td><td>Medium-High</td></tr>
+      <tr><td>DA-4 Outbound + principal</td><td>4A hand-written <code>TokenExchangeClient</code> + <code>Authentication</code> in <code>McpTransportContext</code></td><td>Medium</td></tr>
+      <tr><td>DA-5 Validation/caching/keys</td><td>5A introspection + exchange, no caches, HS256 kept</td><td>High</td></tr>
+      <tr><td>DA-6 Delegation</td><td>6A implicit <code>act: {sub: &lt;mcp client_id&gt;}</code></td><td>Medium-High</td></tr>
+      <tr><td>DA-7 Client auth + seeding</td><td>7A Basic+post <code>ClientAuthenticator</code>, env-driven startup upsert</td><td>Medium</td></tr>
+      <tr><td>DA-8 Bundled follow-ups</td><td>8B FU-3 + FU-5 + FU-2a</td><td>Medium-High</td></tr>
+    </table>
+  </div>
+  <div class="alts" style="grid-template-columns:repeat(auto-fit, minmax(320px, 1fr))">
+    <div class="card"><b>Trade-offs accepted</b>
+      <ul>
+        <li>Two local HTTP calls per tool call (5A), in exchange for immediate revocation and keyless MCP.</li>
+        <li>An implicit audience for clients that omit <code>resource</code> (1A), in exchange for not breaking the demo.</li>
+        <li>The issued <code>scope</code> can be wider than requested within the hierarchy (3A). The team-standard wording <code>mcp:*</code>&rarr;READ/EDIT must be updated to "T2 keeps <code>mcp:*</code>".</li>
+        <li>Hand-written OAuth client and authenticator code to maintain (4A, 7A), in exchange for explicit, testable behaviour.</li>
+        <li><code>_token</code> (O-09), refresh-token persistence and reuse detection, DCR openness and HS256 remain until their follow-ups.</li>
+      </ul></div>
+    <div class="card"><b>Key assumptions (if wrong, revisit)</b>
+      <ol>
+        <li>The MCP SDK's <code>contextExtractor</code> runs on the servlet thread after Spring Security, so the validated <code>Authentication</code> is available there (I5). <i>If wrong:</i> 4D or 4B (<code>immediateExecution(true)</code>).</li>
+        <li>Claude either sends <code>resource</code> equal to the PRM value or omits it. <i>If it sends a different form:</i> add URI normalisation to 1A. <i>If it always sends it:</i> 1B becomes viable.</li>
+        <li>Local introspection + exchange latency is negligible for interactive tool use. <i>If measured otherwise:</i> 5B with SHA-256-keyed caches.</li>
+        <li>One AS and one MCP server. <i>If more MCP servers appear:</i> 2B's per-resource grant policy and 7A's client&rarr;resource binding already generalise. 1C becomes interesting if URLs churn.</li>
+        <li>No production deployment is planned in this task. <i>If one is:</i> revisit 5C/FU-6 (JWKS), FU-7 and FU-8.</li>
+      </ol></div>
+  </div>
+</section>
+
+<!-- Why not -->
+<section id="whynot" class="area">
+  <h2>Why not others</h2>
+  <details class="card"><summary>Rejection rationale for the 21 non-selected alternatives</summary>
+    <table>
+      <tr><th>Alternative</th><th>Why not (for this task)</th></tr>
+      <tr><td>1B Strict <code>resource</code></td><td>Breaks clients that omit <code>resource</code> (unverified for Claude) for no security gain over 1A, since the default only yields an MCP-audience token</td></tr>
+      <tr><td>1C Logical audiences</td><td>Adds a mapping layer and breaks the "PRM <code>resource</code> = checked <code>aud</code>" invariant (I8) to solve URL churn that a local stack does not have</td></tr>
+      <tr><td>1D Host aud = issuer</td><td>Conflates AS and API identities (J-16). Every T0/T2 audience changes if the AS ever moves (FU-9)</td></tr>
+      <tr><td>2A Audience gate only</td><td>Leaves the auth-code&rarr;host-API shortcut open if the H2 registry accepts the API URI</td></tr>
+      <tr><td>2C Actor requirement</td><td>Valid, but couples the host RS to one client id. 2B closes the same hole at issuance more generally. Keep as optional stretch</td></tr>
+      <tr><td>2D Both</td><td>Two rules to keep consistent; disproportionate for a local showcase</td></tr>
+      <tr><td>3B Independent scopes</td><td>Edit-only tokens cannot list; MCP-14 met only on paper</td></tr>
+      <tr><td>3C Translate to READ/EDIT</td><td>Makes T2 authority-identical to T0 and needs matcher clean-up to pay off (K11)</td></tr>
+      <tr><td>3D Hierarchy at resource servers</td><td>Duplicates the rule in two codebases and grows matchers against the standard</td></tr>
+      <tr><td>4B Spring provider + <code>immediateExecution</code></td><td>Three non-default overrides (K9), any of which silently reintroduces scope bleed or a missing principal. Changes the SDK execution model</td></tr>
+      <tr><td>4C Hybrid</td><td>Keeps most of 4B's configuration surface to replace a single form POST</td></tr>
+      <tr><td>4D Holder + <code>finally</code></td><td>Keeps the thread-bound pattern that produced V7</td></tr>
+      <tr><td>5B Caches</td><td>Optimises an unmeasured cost at the price of revocation lag and cache-key risk. Contradicts the team standard</td></tr>
+      <tr><td>5C JWKS now</td><td>Puts a signing-key migration on the critical path that introspection makes unnecessary (I2). Revocation only at <code>exp</code></td></tr>
+      <tr><td>6B Impersonation</td><td>Drops the standard accountability signal (<code>act</code>) for no saving</td></tr>
+      <tr><td>6C <code>actor_token</code></td><td>Needs a <code>client_credentials</code> grant and extra round trips to produce the same <code>act</code> claim</td></tr>
+      <tr><td>7B Liquibase hash</td><td>Commits a known secret, repeating F7; dev-context only</td></tr>
+      <tr><td>7C Config clients</td><td>Two client registries and a <code>client_id</code> collision risk with DCR</td></tr>
+      <tr><td>8A Hop only</td><td>Leaves token logging in the very file being rewritten; misses a near-free refresh-binding fix</td></tr>
+      <tr><td>8C + <code>_token</code></td><td>Touches the consent-page flow (host frontend auth, outside the brief); not on the hop</td></tr>
+      <tr><td>8D Full sweep</td><td>Scope creep; FU-2 persistence deserves its own design</td></tr>
+    </table>
+  </details>
+</section>
+
+<!-- Deferred -->
+<section id="deferred" class="area">
+  <h2>Deferred ideas</h2>
+  <details class="card"><summary>Scope classification (in-scope / stretch / out-of-scope)</summary>
+    <table>
+      <tr><th>Item</th><th>Class</th><th>Rationale</th></tr>
+      <tr><td>All §8 gaps H1–H9, S1–S4, M1–M9 and test rewrites</td><td><span class="pass">In-scope</span></td><td>Required by the research question</td></tr>
+      <tr><td>FU-3 token logging, FU-5 local defaults/env, FU-2a refresh client binding</td><td><span class="pass">In-scope (bundled, DA-8)</span></td><td>Same structures are edited anyway</td></tr>
+      <tr><td>2C actor requirement on <code>mcp:*</code></td><td><span class="sev warning">stretch</span></td><td>Cheap extra defence. Add if review asks for defence in depth</td></tr>
+      <tr><td>URI normalisation for <code>resource</code> comparison</td><td><span class="sev warning">stretch</span></td><td>Needed only if assumption 2 fails</td></tr>
+      <tr><td>FU-4 <code>_token</code> restriction</td><td><span class="sev warning">stretch</span></td><td>MUST, but consent-page coupling puts it outside the brief</td></tr>
+      <tr><td>FU-1 DCR &rarr; CIMD / pre-registration</td><td><span class="sev info">out</span></td><td>MCP client&harr;MCP server hop</td></tr>
+      <tr><td>FU-2b refresh-token persistence, reuse detection, absolute lifetime</td><td><span class="sev info">out</span></td><td>Needs a storage decision</td></tr>
+      <tr><td>FU-6 asymmetric keys + JWKS (and 5C)</td><td><span class="sev info">out</span></td><td>Unnecessary with introspection</td></tr>
+      <tr><td>FU-7 <code>private_key_jwt</code></td><td><span class="sev info">out</span></td><td>Depends on FU-6</td></tr>
+      <tr><td>FU-8 DPoP / mTLS</td><td><span class="sev info">out</span></td><td>No Spring DPoP client; local HTTP stack</td></tr>
+      <tr><td>FU-9 SAS migration ADR</td><td><span class="sev info">out</span></td><td>Build-vs-buy decision of its own</td></tr>
+      <tr><td>FU-10 CIMD / ID-JAG</td><td><span class="sev info">out</span></td><td>Other hop</td></tr>
+      <tr><td>FU-11 misc hardening (client-info endpoint, host 401 header, RFC 9207 <code>iss</code>, MCP <code>Origin</code>, DEBUG logs, <code>state</code> encoding)</td><td><span class="sev info">out</span></td><td>Not on the hop</td></tr>
+    </table>
+  </details>
+  <details class="card"><summary>New ideas surfaced during brainstorming (deferred)</summary>
+    <ul>
+      <li><b>Audit log of MCP-originated writes keyed on <code>act.sub</code>.</b> 6A makes it possible; the host could record the actor on product and category writes. Worth it once there are multiple MCP servers.</li>
+      <li><b>Introspection/exchange latency metric (Micrometer timer)</b> to test assumption 3 cheaply before anyone considers 5B.</li>
+      <li><b>PRM <code>resource_name</code></b> and a <code>scope</code> hint per tool in <code>tools/list</code> descriptions, to improve the consent UX.</li>
+      <li><b>Candidate standards</b> (from report §11.4): "metadata advertises only implemented behaviour, with a test per field"; "every host JWT carries and every RS validates <code>iss</code> + <code>aud</code>"; "security-sensitive values are never logged". Plus one from this exploration: "each OAuth resource declares which grants may target it" (DA-2).</li>
+      <li><b>Reserved <code>client_id</code> namespace for internal clients</b> in DCR (relevant if 7C is ever chosen).</li>
+    </ul>
+  </details>
+</section>
+
+</main>
+</body>
+</html>

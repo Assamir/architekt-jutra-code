@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Research Report — MCP auth refactor</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+
+/* breadcrumb + tiles */
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+
+/* extensions */
+header .meta { color:var(--dim); font-size:12.5px; }
+.tldr { border-left:4px solid var(--accent); }
+.tldr h3 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:14px 0 6px; }
+.tldr h3:first-child { margin-top:0; }
+.tldr ul { margin:4px 0; padding-left:20px; }
+.toc { font-size:13px; color:var(--dim); margin:10px 0 4px; }
+.conf { display:inline-block; font-size:10.5px; font-weight:700; padding:1.5px 7px; border-radius:99px; text-transform:uppercase; }
+.conf.high { background:var(--ok-soft); color:var(--ok); }
+.conf.mh { background:var(--info-soft); color:var(--info); }
+.conf.med { background:var(--warn-soft); color:var(--warn); }
+.st { display:inline-block; font-size:10.5px; font-weight:700; padding:1.5px 7px; border-radius:99px; text-transform:uppercase; white-space:nowrap; }
+.st.met { background:var(--ok-soft); color:var(--ok); }
+.st.partial { background:var(--warn-soft); color:var(--warn); }
+.st.missing { background:var(--crit-soft); color:var(--crit); }
+.st.na { background:var(--accent-soft); color:var(--dim); }
+.st.def { background:var(--info-soft); color:var(--info); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+@media (max-width:760px) { .grid2, .grid3 { grid-template-columns:1fr; } }
+.grid2 .card, .grid3 .card { margin:0; }
+.rec { border:2px solid var(--accent); }
+.card h4 { margin:0 0 6px; font-size:14px; }
+.small { font-size:12.5px; color:var(--dim); }
+pre.flow { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px; overflow-x:auto; font-size:11.5px; line-height:1.45; }
+.scroll { overflow-x:auto; }
+.swot .card h4 { text-transform:uppercase; font-size:12px; letter-spacing:.05em; }
+.swot .s { border-top:3px solid var(--ok); } .swot .w { border-top:3px solid var(--warn); }
+.swot .o { border-top:3px solid var(--info); } .swot .t { border-top:3px solid var(--crit); }
+.bar { display:flex; height:12px; border-radius:99px; overflow:hidden; margin:6px 0 4px; border:1px solid var(--border); }
+.bar span { display:block; }
+td.dots { white-space:nowrap; letter-spacing:1px; }
+tr.recrow td { background:var(--accent-soft); }
+</style>
+</head>
+<body>
+
+<nav class="crumbs">
+  <a href="../dashboard.html">&larr; Dashboard</a>
+  <span class="here">Report</span>
+  <a href="solution-exploration.html">Exploration</a>
+  <a href="high-level-design.html">Design</a>
+  <a href="decision-log.html">Decision Log</a>
+  <a href="research-report.md" target="_blank" rel="noopener" class="md">md twin &#8599;</a>
+</nav>
+
+<header>
+  <span class="badge">Research report</span>
+  <h1>MCP auth refactor: replacing token passthrough</h1>
+  <div class="meta">Mixed research (code + specs + course + industry) &middot; 2026-11-14 &middot; branch <code>feat/mcp-auth-refactor</code> (HEAD <code>bd4de70</code>) &middot; MCP spec rev 2026-07-28 &middot; <a href="research-report.md" target="_blank" rel="noopener">research-report.md</a> &middot; <a href="../analysis/synthesis.md" target="_blank" rel="noopener">synthesis.md</a></div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><b>14</b><span>findings</span></div>
+  <div class="tile"><b>9</b><span>findings files</span></div>
+  <div class="tile"><b>~50</b><span>external sources</span></div>
+  <div class="tile"><b>34</b><span>requirements checked</span></div>
+  <div class="tile"><b>6</b><span>alternatives</span></div>
+  <div class="tile"><b>High</b><span>confidence</span></div>
+</div>
+
+<section class="card tldr">
+  <h3>TL;DR</h3>
+  <p>Replace passthrough with <b>RFC 8693 token exchange (delegation)</b> at the existing hand-written host AS. The MCP server validates inbound tokens with <b>RFC 7662 introspection</b> (no cache) and <b>checks that <code>aud</code> equals its RFC 9728 <code>resource</code></b>. It then exchanges the token for a short-lived backend token with <code>aud</code> = host API, <code>client_id</code> and <code>act</code> = MCP server, and scope = subject scopes &cap; user permissions. The host must issue <code>aud</code> (from RFC 8707 <code>resource</code>) on every token and <b>reject tokens at <code>/api/**</code> whose <code>aud</code> is not the host API</b>. No SAS or Keycloak migration now. Defer DPoP/mTLS and asymmetric keys: introspection means the MCP server never needs the host's signing key.</p>
+  <h3>Key Decisions</h3>
+  <ul>
+    <li><b>Outbound: RFC 8693 token exchange, delegation.</b> The only option that keeps the user's identity and permissions downstream and adds the MCP server as a distinguishable actor. Course M04L07, the team standard and six vendors use it.</li>
+    <li><b>Inbound: RFC 7662 introspection, no cache, plus an explicit <code>aud</code> check.</b> No shared HMAC secret, immediate revocation, cheap on localhost.</li>
+    <li><b>Audience binding on both resource servers.</b> Mandatory in every option; it closes replay in both directions.</li>
+    <li><b>Extend the custom AS.</b> SAS exchange only accepts SAS-issued subject tokens, so migration is all or nothing.</li>
+    <li><b>Ship the scope &cap; permission intersection with the exchange grant.</b> It closes the <code>viewer</code>&rarr;<code>mcp:edit</code> escalation.</li>
+    <li><b>Client credentials + propagated user header is rejected.</b> It recreates the confused deputy.</li>
+  </ul>
+  <h3>Open Questions / Risks</h3>
+  <ul>
+    <li><span class="sev warning">warning</span>Open decisions: canonical <code>aud</code> values, default audience, principal propagation (threading), hand-written vs Spring exchange client, scope hierarchy, client seeding (D-1&hellip;D-13).</li>
+    <li><span class="sev warning">warning</span>Spring defaults are unsafe here: an opaque principal is not an <code>OAuth2Token</code>; the interceptor reads an empty <code>SecurityContextHolder</code> on <code>boundedElastic</code>; the default cache is keyed by principal name, so scope leaks between clients.</li>
+    <li><span class="sev critical">critical</span>Three pre-existing AS-wide MUST violations remain unless follow-ups are bundled: token logging, refresh-token client binding, and the <code>_token</code> query parameter. Open DCR also stays (MAY in 2026-07-28).</li>
+    <li><span class="sev warning">warning</span>The PRM <code>resource</code> defaults to an external host. Once <code>aud</code> is enforced, a local run fails unless the default points at the local MCP URI.</li>
+  </ul>
+</section>
+
+<div class="toc">Contents: <a href="#findings">Findings</a> &middot; <a href="#matrix">Compliance matrix</a> &middot; <a href="#alternatives">Alternatives</a> &middot; <a href="#design">Target design</a> &middot; <a href="#vulns">Vulnerabilities eliminated</a> &middot; <a href="#gaps">Gap list</a> &middot; <a href="#followups">Follow-ups</a> &middot; <a href="#decisions">Open decisions</a> &middot; <a href="#insights">Insights &amp; SWOT</a> &middot; <a href="#conclusion">Conclusion</a> &middot; <a href="#appendix">Sources &amp; gaps</a></div>
+
+<main>
+
+<h2 id="findings">Findings</h2>
+<div class="card scroll">
+<table>
+<thead><tr><th>#</th><th>Finding</th><th>Category</th><th>Confidence</th><th>Sources</th></tr></thead>
+<tbody>
+<tr><td>F1</td><td>MCP server accepts any bearer token (<code>McpJwtFilter.java:30-36</code>)</td><td>Security</td><td><span class="conf high">High</span></td><td>3</td></tr>
+<tr><td>F2</td><td>Raw client token forwarded to host via a never-cleared static <code>ThreadLocal</code> (<code>RestClientConfig.java:78-80</code>); a test pins it</td><td>Security</td><td><span class="conf high">High</span></td><td>3</td></tr>
+<tr><td>F3</td><td>Tool handlers run on Reactor <code>boundedElastic</code>, not the servlet thread (MCP SDK 0.18.1, <code>immediateExecution=false</code>)</td><td>Constraint</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F4</td><td>No token has <code>aud</code>; host checks neither <code>aud</code> nor <code>iss</code>; app and MCP tokens accepted alike at <code>/api/**</code></td><td>Security</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F5</td><td>Host AS lacks introspection, exchange, <code>resource</code>, JWKS, <code>client_credentials</code>, seeded confidential client; Basic advertised but ignored</td><td>Capability</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F6</td><td>READ-only <code>viewer</code> can obtain <code>mcp:edit</code> (scopes never intersected with permissions)</td><td>Security</td><td><span class="conf high">High</span></td><td>1</td></tr>
+<tr><td>F7</td><td>Single HS256 key with a committed default, no <code>kid</code>/rotation/<code>typ</code></td><td>Security</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F8</td><td>MCP 2026-07-28 is current; MCP-server auth MUSTs unchanged since 2025-11-25</td><td>Spec</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F9</td><td>The spec fixes the end state (validate <code>aud</code>, no passthrough), not the mechanism</td><td>Spec</td><td><span class="conf high">High</span></td><td>3</td></tr>
+<tr><td>F10</td><td>Industry converges on validate-then-exchange (Auth0, Okta, Entra, Keycloak, SAS, Cloudflare)</td><td>Patterns</td><td><span class="conf high">High</span></td><td>6</td></tr>
+<tr><td>F11</td><td>Spring Security 7.1 covers the MCP side, with non-default config (subject resolver, principal resolver, cache key, <code>aud</code> wrapper)</td><td>Patterns</td><td><span class="conf mh">Med-High</span></td><td>2</td></tr>
+<tr><td>F12</td><td>SAS exchange only for SAS-issued tokens; Keycloak is an IdP swap</td><td>Patterns</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F13</td><td>Course (M04L07) expects introspection + exchange; leaves parameters, caching and <code>act</code> open</td><td>Course</td><td><span class="conf high">High</span></td><td>2</td></tr>
+<tr><td>F14</td><td>Backend 401/403 become JSON-RPC <code>-32603</code> in HTTP 200; PRM defaults to external URLs</td><td>Compliance</td><td><span class="conf high">High</span></td><td>2</td></tr>
+</tbody>
+</table>
+<details><summary>Evidence highlights</summary>
+<ul class="small">
+<li>F1: principal <code>"mcp-user"</code> with no authorities; Javadoc <code>McpJwtFilter.java:15-19</code> "trust-and-forward model"; no scope check, so a read token can call <code>aj_add_product</code>.</li>
+<li>F2: token extracted independently in <code>AjMcpApplication.java:42-46</code>; set at <code>ProductService.java:31,43</code>, <code>CategoryService.java:29</code>; pinned by <code>RestClientConfigTests.java:26-44</code>.</li>
+<li>F4: <code>JwtTokenProvider.java:47-58</code> (claims), <code>:68-83</code> (validation), <code>JwtAuthenticationFilter.java:28-35</code>, <code>SecurityConfiguration.java:106-120</code>.</li>
+<li>F5: <code>OAuth2TokenFilter.java:62-69</code> (grant dispatch), <code>:82,116-131</code> (inline client auth); DCR rejects other grants <code>PublicClientRegistrationFilter.java:135-147</code>.</li>
+<li>F6: <code>OAuth2AuthorizationFilter.java:98-109</code> stores permissions, <code>OAuth2TokenFilter.java:142-147</code> never reads them; consent UI <code>OAuth2AuthorizePage.tsx:47-57</code>.</li>
+<li>F7: <code>JwtTokenProvider.java:23-26</code>, <code>application.properties:4</code>; not overridden in <code>compose.yml</code> or <code>start-dev.*</code>.</li>
+<li>F14: <code>RestClientConfig.java:39-53</code>; <code>application.yml:26,28</code>.</li>
+</ul>
+</details>
+</div>
+
+<h2 id="matrix">Compliance matrix (current vs target)</h2>
+<div class="card">
+  <div class="small">Current state, 34 rows: 6 met &middot; 7 partial &middot; 19 missing/violated &middot; 2 N/A</div>
+  <div class="bar"><span style="width:17.6%;background:var(--ok)"></span><span style="width:20.6%;background:var(--warn)"></span><span style="width:55.9%;background:var(--crit)"></span><span style="width:5.9%;background:var(--border)"></span></div>
+  <div class="small">Target: every MUST on the MCP&harr;host hop met. Three pre-existing AS-wide MUSTs stay open until follow-ups (B-12 logging FU-3, B-15/O-07 refresh binding FU-2, O-09 <code>_token</code> FU-4). Three SHOULD rows deferred (rows 26, 33, 34).</div>
+  <div class="scroll" style="margin-top:10px">
+  <table>
+  <thead><tr><th>#</th><th>Req</th><th>Kw</th><th>Applies</th><th>Requirement</th><th>Current</th><th>Target</th></tr></thead>
+  <tbody>
+  <tr><td>1</td><td>MCP-02</td><td>MUST</td><td>MCP-RS</td><td>RFC 9728 PRM with <code>authorization_servers</code></td><td><span class="st met">Met</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>2</td><td>MCP-03</td><td>MUST</td><td>MCP-RS</td><td>PRM discovery via <code>resource_metadata</code> challenge</td><td><span class="st met">Met</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>3</td><td>P-05</td><td>MUST</td><td>MCP-RS</td><td>PRM <code>resource</code> equals canonical URI</td><td><span class="st partial">Partial</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>4</td><td>MCP-04</td><td>SHOULD</td><td>MCP-RS</td><td><code>scope</code> in 401 challenge</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>5</td><td>MCP-06, O-11</td><td>MUST</td><td>MCP-RS</td><td>Validate token per OAuth 2.1 &sect;5.2</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>6</td><td>MCP-07/19/29, J-12</td><td>MUST</td><td>MCP-RS</td><td>Token issued for this server (<code>aud</code>)</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>7</td><td>MCP-10/11/33</td><td>MUST NOT</td><td>MCP-RS</td><td>Accept only own tokens; never accept or transit others</td><td><span class="st missing">Violated</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>8</td><td>MCP-27</td><td>MUST</td><td>MCP-RS</td><td>Validate before processing</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>9</td><td>MCP-08, O-12, BT-02</td><td>MUST</td><td>MCP-RS</td><td>401 + <code>invalid_token</code> on invalid or expired</td><td><span class="st partial">Partial</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>10</td><td>MCP-12/13, O-13</td><td>MUST/SHOULD</td><td>MCP-RS</td><td>403 <code>insufficient_scope</code> with <code>scope</code></td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>11</td><td>MCP-14</td><td>MUST</td><td>MCP-RS</td><td>Account for scope hierarchies</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met (D-6)</span></td></tr>
+  <tr><td>12</td><td>MCP-15</td><td>SHOULD NOT</td><td>MCP-RS</td><td>No <code>offline_access</code> in <code>scopes_supported</code></td><td><span class="st met">Met</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>13</td><td>MCP-31</td><td><b>MUST NOT</b></td><td>MCP-C</td><td>Pass through the client's token</td><td><span class="st missing">Violated</span></td><td><span class="st met">Met (exchange)</span></td></tr>
+  <tr><td>14</td><td>MCP-35</td><td>MUST</td><td>MCP-RS</td><td>Verify all inbound requests</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>15</td><td>MCP-36</td><td>guidance</td><td>MCP-RS</td><td>Server-side authorization (per-tool scope)</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>16</td><td>MCP-20, B-12</td><td>MUST</td><td>MCP-RS, AS</td><td>Tokens treated as secrets (no logging or lingering storage)</td><td><span class="st partial">Partial</span></td><td><span class="st partial">Partial (FU-3)</span></td></tr>
+  <tr><td>17</td><td>MCP-21, BT-05</td><td>SHOULD</td><td>AS</td><td>Short-lived access tokens</td><td><span class="st met">Met</span></td><td><span class="st met">Met (T2 &le; 5 min)</span></td></tr>
+  <tr><td>18</td><td>MCP-22, O-08</td><td>MUST</td><td>AS</td><td>Rotate refresh tokens (public clients)</td><td><span class="st met">Met</span></td><td><span class="st met">Met (reuse detect FU-2)</span></td></tr>
+  <tr><td>19</td><td>B-15, O-07</td><td>MUST</td><td>AS</td><td>Refresh tokens bound to scope, client, resource</td><td><span class="st missing">Missing</span></td><td><span class="st partial">Partial (FU-2)</span></td></tr>
+  <tr><td>20</td><td>MCP-24</td><td>MUST</td><td>AS</td><td>PKCE S256</td><td><span class="st met">Met</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>21</td><td>MCP-25</td><td>MUST</td><td>AS</td><td>Exact redirect URI match</td><td><span class="st met">Met</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>22</td><td>MCP-37, M-03</td><td>MUST</td><td>AS</td><td>Stable <code>issuer</code> identical to discovery URL</td><td><span class="st partial">Partial</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>23</td><td>RI-03, B-03, J-07/08</td><td>SHOULD/MUST</td><td>AS</td><td>Audience-restrict to <code>resource</code>; default <code>aud</code></td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>24</td><td>J-04</td><td>REQUIRED</td><td>AS</td><td>Claims <code>iss exp aud sub client_id iat jti</code></td><td><span class="st partial">Partial</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>25</td><td>J-03</td><td>MUST/SHOULD</td><td>AS</td><td><code>typ: at+jwt</code></td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>26</td><td>J-02, J-09</td><td>REC/SHOULD</td><td>AS</td><td>Asymmetric signing, <code>jwks_uri</code></td><td><span class="st missing">Missing</span></td><td><span class="st def">Deferred FU-6</span></td></tr>
+  <tr><td>27</td><td>B-04, O-14</td><td><b>MUST</b></td><td>BE-RS</td><td>Host refuses tokens not meant for it</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>28</td><td>X-03&hellip;X-13</td><td>REQ/MUST</td><td>AS, MCP-C</td><td>Token-exchange grant semantics</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>29</td><td>X-10, B-07, O-05</td><td>SHOULD/MUST</td><td>MCP-C, AS</td><td>MCP server authenticates as confidential client</td><td><span class="st missing">Missing</span></td><td><span class="st met">Met (asym. FU-7)</span></td></tr>
+  <tr><td>30</td><td>I-03, I-12</td><td>MUST</td><td>AS</td><td>Introspection requires authenticated caller</td><td><span class="st na">N/A</span></td><td><span class="st met">Met</span></td></tr>
+  <tr><td>31</td><td>I-15</td><td>MUST NOT</td><td>MCP-RS</td><td>No caching beyond <code>exp</code></td><td><span class="st na">N/A</span></td><td><span class="st met">Met (no cache)</span></td></tr>
+  <tr><td>32</td><td>O-09</td><td>MUST</td><td>BE-RS</td><td>Ignore tokens in query string (<code>_token</code>)</td><td><span class="st missing">Violated</span></td><td><span class="st missing">Violated until FU-4</span></td></tr>
+  <tr><td>33</td><td>B-01, O-02</td><td>SHOULD</td><td>AS, RS</td><td>Sender-constrained tokens</td><td><span class="st missing">Missing</span></td><td><span class="st def">Deferred FU-8</span></td></tr>
+  <tr><td>34</td><td>MCP-23, O-03</td><td>MUST</td><td>AS</td><td>HTTPS for AS endpoints</td><td><span class="st partial">Partial</span></td><td><span class="st partial">Unchanged (local)</span></td></tr>
+  </tbody>
+  </table>
+  </div>
+</div>
+
+<h2 id="alternatives">Alternatives comparison</h2>
+<div class="card scroll">
+<p class="small">A3 is required in every option and A2 is a sub-choice that pairs with any outbound mechanism. Ratings: &#9679;&#9679;&#9679;&#9679;&#9679; best.</p>
+<table>
+<thead><tr><th>Alternative</th><th>Security</th><th>Complexity (host / MCP)</th><th>Spec compliance</th><th>Fit: custom AS + Spring 7</th><th>Course</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr class="recrow"><td><b>A1</b> RFC 8693 exchange (delegation, <code>act</code>)</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>Medium / Low-Med</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>New <code>grant_type</code> branch; Spring provider exists but needs overrides</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td><span class="st met">Recommended</span></td></tr>
+<tr class="recrow"><td><b>A2a</b> Inbound RFC 7662 introspection</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9675;</td><td>Low-Med / Low</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>One filter + <code>opaqueToken()</code>; <code>aud</code> wrapper</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td><span class="st met">Recommended</span></td></tr>
+<tr><td><b>A2b</b> Inbound local JWT, shared HMAC</td><td class="dots">&#9679;&#9679;&#9675;&#9675;&#9675;</td><td>Low / Low</td><td class="dots">&#9679;&#9679;&#9675;&#9675;&#9675;</td><td>Easy but MCP could mint host tokens</td><td class="dots">&#9679;&#9679;&#9675;&#9675;&#9675;</td><td><span class="st missing">Rejected</span></td></tr>
+<tr><td><b>A2c</b> Inbound local JWT, RS256 + JWKS</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9675;</td><td>Medium / Low</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>jjwt&rarr;RS256, JWKS, <code>createAtJwtValidator()</code></td><td class="dots">&#9679;&#9679;&#9679;&#9675;&#9675;</td><td><span class="st def">Upgrade path</span></td></tr>
+<tr class="recrow"><td><b>A3</b> RFC 8707 <code>resource</code> + <code>aud</code> at both RS</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>Low-Med / Low</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>Param + claim + <code>requireAudience</code></td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td><span class="st met">Required</span></td></tr>
+<tr><td><b>A4</b> Client credentials + user context header</td><td class="dots">&#9679;&#9675;&#9675;&#9675;&#9675;</td><td>Low-Med / Low</td><td class="dots">&#9679;&#9679;&#9675;&#9675;&#9675;</td><td>Needs header trust rule in host filter</td><td class="dots">&#9679;&#9675;&#9675;&#9675;&#9675;</td><td><span class="st missing">Rejected</span></td></tr>
+<tr><td><b>A5</b> Migrate to SAS / Keycloak</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>High (SAS) / Very high (KC); MCP same</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9675;</td><td>No partial adoption (SAS-issued subjects only)</td><td class="dots">&#9679;&#9679;&#9675;&#9675;&#9675;</td><td><span class="st def">Not now (FU-9)</span></td></tr>
+<tr><td><b>A6</b> DPoP / mTLS</td><td class="dots">&#9679;&#9679;&#9679;&#9679;&#9679;</td><td>High; no Spring DPoP client; PKI</td><td class="dots">&#9679;&#9679;&#9679;&#9675;&#9675;</td><td>Poor today</td><td class="dots">&#9679;&#9679;&#9675;&#9675;&#9675;</td><td><span class="st def">Deferred (FU-8)</span></td></tr>
+</tbody>
+</table>
+<details><summary>Why not the others</summary>
+<ul class="small">
+<li><b>A2b</b>: the MCP server would hold the HS256 key used for every host token, so it could mint host tokens. Contradicts RFC 9068 J-02/J-13.</li>
+<li><b>A4</b>: the backend must trust the MCP server for user identity, which is the confused deputy. An unsigned header is forgeable by any holder of the client secret. It loses per-user consent and scope, and a signed-assertion variant reinvents exchange.</li>
+<li><b>A5</b>: high or very high one-off cost; SAS lacks native <code>resource</code> and does not intersect subject scopes; the MCP side is identical either way.</li>
+<li><b>A6</b>: the SHOULD-level gain is disproportionate for a localhost, plain-HTTP, server-to-server hop. Spring has no DPoP client.</li>
+</ul>
+</details>
+</div>
+
+<h2 id="design">Recommendation and target design</h2>
+<div class="grid3">
+  <div class="card rec"><h4>1. Audience everywhere</h4><span class="small">Host AS reads <code>resource</code>, issues <code>aud</code>, <code>client_id</code>, <code>jti</code>, <code>typ at+jwt</code> from a configured issuer. App tokens get <code>aud</code> = host API. Host filter requires <code>iss</code> + <code>aud</code>.</span></div>
+  <div class="card rec"><h4>2. Inbound: introspection</h4><span class="small"><code>opaqueToken()</code> &rarr; <code>/oauth2/introspect</code> as the MCP confidential client. Require <code>active</code> and <code>aud</code> &ni; <code>aj.mcp.base-url</code>. Per-tool scope. 401/403 challenges. No cache.</span></div>
+  <div class="card rec"><h4>3. Outbound: exchange</h4><span class="small">Per tool call: token-exchange grant, <code>subject_token</code> = validated T1, <code>resource</code> = host API. Send T2 only. No cache.</span></div>
+  <div class="card rec"><h4>4. Exchange policy (AS)</h4><span class="small">Caller must own the MCP resource; subject <code>aud</code> = MCP URI; scope = T1 &cap; user perms &cap; client scopes; <code>act</code> = MCP server; <code>exp</code> &le; min(5 min, T1 <code>exp</code>); no refresh token.</span></div>
+  <div class="card rec"><h4>5. Keys</h4><span class="small">Keep HS256 for now: only the host verifies host tokens. Override the committed default secret (FU-5). JWKS later (FU-6).</span></div>
+  <div class="card"><h4>Effort</h4><span class="small"><b>Medium</b> overall. Mostly host AS (grant, endpoint, claims, client auth). MCP side: deletions + Spring RS wiring + small exchange client.</span></div>
+</div>
+
+<div class="card scroll">
+<table>
+<thead><tr><th></th><th>T0 app session</th><th>T1 MCP access token</th><th>T2 backend (exchanged)</th></tr></thead>
+<tbody>
+<tr><td>Issued at</td><td><code>/api/auth/login</code></td><td><code>/oauth2/token</code> (code+PKCE, refresh)</td><td><code>/oauth2/token</code> (token exchange)</td></tr>
+<tr><td><code>aud</code></td><td>host API URI (new)</td><td>MCP canonical URI</td><td>host API URI</td></tr>
+<tr><td><code>sub</code></td><td>user</td><td>user</td><td>user</td></tr>
+<tr><td><code>client_id</code></td><td>&mdash;</td><td>MCP client (e.g. Claude)</td><td>MCP server</td></tr>
+<tr><td><code>act</code></td><td>&mdash;</td><td>&mdash;</td><td><code>{sub: mcp server}</code></td></tr>
+<tr><td>Rights</td><td><code>permissions</code></td><td>scopes &sube; user perms</td><td>scopes &sube; T1 &cap; perms &cap; client</td></tr>
+<tr><td>TTL</td><td>24 h</td><td>15 min</td><td>&le; 5 min, capped at T1 <code>exp</code></td></tr>
+<tr><td>Validated by</td><td>host filter</td><td>MCP via host introspection</td><td>host filter</td></tr>
+</tbody>
+</table>
+</div>
+
+<pre class="flow">MCP client (Claude)            MCP server :8081                         Host :8080 (AS + /api)
+      |  POST /  Bearer T1          |                                          |
+      |----------------------------&gt;|                                          |
+      |                             | BearerTokenAuthenticationFilter          |
+      |                             |  POST /oauth2/introspect token=T1        |
+      |                             |  Authorization: Basic mcp-server:secret  |
+      |                             |-----------------------------------------&gt;| ClientAuthenticator
+      |                             |&lt;-----------------------------------------| {active, sub, scope, aud, client_id, exp}
+      |                             | aud contains aj.mcp.base-url ? else 401 invalid_token
+      |                             | contextExtractor: validated Authentication -&gt; McpTransportContext
+      |                             | tool handler (boundedElastic): scope check -&gt; else 403 insufficient_scope
+      |                             |  POST /oauth2/token grant_type=token-exchange
+      |                             |   subject_token=T1, resource=&lt;host API URI&gt; (Basic auth)
+      |                             |-----------------------------------------&gt;| validate T1 (sig, exp, aud=MCP URI,
+      |                             |                                          |  caller owns MCP resource)
+      |                             |&lt;-----------------------------------------| T2 {aud=host API, act, scope&amp;perm, exp&lt;=5m}
+      |                             |  GET /api/products  Bearer T2            |
+      |                             |-----------------------------------------&gt;| JwtAuthenticationFilter: sig, exp,
+      |                             |                                          |  iss, aud=host API -&gt; PERMISSION_mcp:*
+      |&lt;----------------------------| CallToolResult                           |</pre>
+
+<h2 id="vulns">How each brief vulnerability is eliminated</h2>
+<div class="grid2">
+  <div class="card"><h4><span class="sev critical">critical</span>Token passthrough</h4>
+    <p class="small"><b>Root cause:</b> <code>JwtForwardingInterceptor</code> re-sends T1; the host accepts it.</p>
+    <p class="small"><b>Fix:</b> T1 only goes back to its issuer (introspection, exchange). The host receives T2 only. Interceptor, <code>AccessTokenHolder</code> and raw <code>TOKEN_KEY</code> are deleted, and the host would reject T1 anyway (<code>aud</code> &ne; host API).</p>
+    <p class="small"><b>Residual:</b> none on this hop; a regression test asserts outbound header &ne; inbound token.</p></div>
+  <div class="card"><h4><span class="sev critical">critical</span>Confused deputy</h4>
+    <p class="small"><b>Root cause:</b> the host cannot tell relayed calls from direct ones; the MCP server has no identity.</p>
+    <p class="small"><b>Fix:</b> the MCP server authenticates as a confidential client; T2 carries <code>client_id</code> and <code>act.sub</code>; exchange is allowed only for MCP-audience subjects; scope is capped at user permissions.</p>
+    <p class="small"><b>Residual:</b> matchers do not yet require <code>act</code> on <code>mcp:*</code> (optional, D-8).</p></div>
+  <div class="card"><h4><span class="sev critical">critical</span>No audience restriction / replay</h4>
+    <p class="small"><b>Root cause:</b> no <code>aud</code> on any token; the host checks none.</p>
+    <p class="small"><b>Fix:</b> T0, T1 and T2 each get a distinct <code>aud</code>. MCP rejects T0 and T2; the host rejects T1. T2 lives &le; 5 min.</p>
+    <p class="small"><b>Residual:</b> bearer theft within audience and TTL (DPoP, FU-8).</p></div>
+  <div class="card"><h4><span class="sev critical">critical</span>No validation at MCP</h4>
+    <p class="small"><b>Root cause:</b> <code>McpJwtFilter</code> trusts any bearer; tools read the raw header.</p>
+    <p class="small"><b>Fix:</b> Spring <code>BearerTokenAuthenticationFilter</code> + introspection + <code>aud</code> check before any tool runs. Tools see only the validated <code>Authentication</code>. Per-tool scope checks.</p>
+    <p class="small"><b>Residual:</b> none; an introspection outage means 401 (fail closed).</p></div>
+</div>
+<p class="small">Also resolved: V6 parsing split, V7 stale <code>ThreadLocal</code>, V8/V10 401/403 semantics. V9 external defaults is partly resolved (D-2).</p>
+
+<h2 id="gaps">Gap list per component (in scope)</h2>
+<div class="card">
+<details open><summary>Host authorization server (<code>core/oauth2</code>): 9 gaps</summary>
+<table>
+<thead><tr><th>#</th><th>Gap</th><th>Location</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>H1</td><td>Issuer derived from request headers</td><td><code>OAuth2TokenFilter.java:146,254-282</code>; <code>OAuth2MetadataController.java:39,54-83</code></td><td>Configured <code>app.oauth2.issuer</code></td></tr>
+<tr><td>H2</td><td>No RFC 8707 <code>resource</code></td><td><code>OAuth2AuthorizationFilter.java:67-73</code>; <code>AuthorizationCodeService.java:64-73</code>; <code>OAuth2TokenFilter.java:78-82</code>; <code>RefreshTokenService.java:75-80</code></td><td>Read, validate against a registry, store with code and refresh; default (D-3); <code>invalid_target</code></td></tr>
+<tr><td>H3</td><td>No reusable client auth; Basic ignored</td><td><code>OAuth2TokenFilter.java:82,116-131</code></td><td><code>ClientAuthenticator</code> (basic + post, BCrypt)</td></tr>
+<tr><td>H4</td><td>No MCP confidential client</td><td><code>db/changelog/2026/*</code></td><td>Seed <code>aj-mcp-server</code>, secret from env (D-9)</td></tr>
+<tr><td>H5</td><td>No introspection endpoint</td><td>new filter; matcher near <code>SecurityConfiguration.java:91-94</code></td><td><code>POST /oauth2/introspect</code>, authenticated caller, <code>active:false</code> without detail</td></tr>
+<tr><td>H6</td><td>No token-exchange grant</td><td><code>OAuth2TokenFilter.java:62-69, 216-237</code></td><td>New branch; <code>issued_token_type</code>, real <code>expires_in</code>, no refresh token</td></tr>
+<tr><td>H7</td><td>Scope &cap; permission missing (F6)</td><td><code>OAuth2TokenFilter.java:142-147</code></td><td>Intersect at auth code and at exchange</td></tr>
+<tr><td>H8</td><td>Metadata lacks new capabilities</td><td><code>OAuth2MetadataController.java:41-51</code></td><td><code>introspection_endpoint</code>, exchange grant; advertise only what is implemented</td></tr>
+<tr><td>H9</td><td>New code must not copy token logging</td><td><code>OAuth2TokenFilter.java:57-59,152-153,234</code></td><td>No tokens in logs; cleaning existing logs = FU-3</td></tr>
+</tbody></table>
+</details>
+<details><summary>Host token issuance &amp; API filter (<code>core/security</code>): 4 gaps</summary>
+<table>
+<thead><tr><th>#</th><th>Gap</th><th>Location</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>S1</td><td>OAuth token lacks <code>aud</code>, <code>client_id</code>, <code>jti</code>, <code>typ</code></td><td><code>JwtTokenProvider.java:47-58</code></td><td>Extend the generator (+ optional <code>act</code>)</td></tr>
+<tr><td>S2</td><td>App token lacks <code>iss</code>, <code>aud</code></td><td><code>JwtTokenProvider.java:29-43</code></td><td>Configured <code>iss</code>, <code>aud</code> = host API</td></tr>
+<tr><td>S3</td><td>No <code>iss</code>/<code>aud</code> validation</td><td><code>JwtTokenProvider.java:68-83</code></td><td><code>requireIssuer</code>, require host API in <code>aud</code>; expose <code>aud</code>, <code>client_id</code>, <code>act</code></td></tr>
+<tr><td>S4</td><td>Matchers</td><td><code>SecurityConfiguration.java:91-94,106-120</code></td><td><code>permitAll</code> for <code>/oauth2/introspect</code>; keep <code>mcp:*</code> (now only reachable with T2); optional actor rule (D-8)</td></tr>
+</tbody></table>
+</details>
+<details><summary>MCP server (<code>mcp-server/</code>): 9 gaps</summary>
+<table>
+<thead><tr><th>#</th><th>Gap</th><th>Location</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>M1</td><td>Dependencies</td><td><code>pom.xml:22-65</code></td><td><code>spring-boot-starter-security-oauth2-resource-server</code>, <code>spring-security-test</code>; client starter only if D-4(b)</td></tr>
+<tr><td>M2</td><td>Trust-any-bearer filter</td><td><code>McpJwtFilter.java</code>; <code>SecurityConfig.java:21-40</code></td><td>Delete; <code>opaqueToken()</code> with <code>aud</code>-checking introspector</td></tr>
+<tr><td>M3</td><td>401/403 semantics</td><td><code>McpAuthenticationEntryPoint.java:18-24</code>; <code>SecurityConfig.java:32-35</code></td><td><code>scope</code>, <code>error="invalid_token"</code> (only if a token was sent); 403 <code>insufficient_scope</code> handler</td></tr>
+<tr><td>M4</td><td>Raw token in transport context</td><td><code>AjMcpApplication.java:42-46</code></td><td>Store the validated <code>Authentication</code>; remove <code>TOKEN_KEY</code> (D-5)</td></tr>
+<tr><td>M5</td><td>Passthrough holder &amp; interceptor</td><td><code>AccessTokenHolder.java</code>; <code>RestClientConfig.java:28-38,64-86</code></td><td>Delete; <code>TokenExchangeClient</code> + per-call T2 attachment; no static <code>ThreadLocal</code></td></tr>
+<tr><td>M6</td><td>Token params; no scope enforcement</td><td><code>ProductService.java:26-31,42-43,69-71,183-185</code>; <code>CategoryService.java:24-29,43</code></td><td>Principal from ctx; <code>mcp:read</code> / <code>mcp:edit</code> per tool</td></tr>
+<tr><td>M7</td><td>Backend 401/403 mapping</td><td><code>RestClientConfig.java:39-53</code></td><td>401 = server credential failure, no retry; never echo bodies with tokens</td></tr>
+<tr><td>M8</td><td>Config</td><td><code>application.yml:22-34</code></td><td>Introspection and token URIs, <code>AJ_OAUTH_CLIENT_ID/SECRET</code>, host API resource; one property drives PRM + challenge + <code>aud</code></td></tr>
+<tr><td>M9</td><td>PRM</td><td><code>WellKnownController.java:14-28</code></td><td><code>resource</code> = checked URI; <code>authorization_servers</code> = configured issuer</td></tr>
+</tbody></table>
+</details>
+<details><summary>Tests and documentation drift</summary>
+<ul class="small">
+<li><b>MCP rewrite:</b> <code>McpJwtFilterTests</code>, <code>AccessTokenHolderTests</code>, <code>RestClientConfigTests</code> (asserts passthrough), <code>ToolCallIntegrationTests</code>, <code>ErrorMappingTests</code>, <code>ToolSchemaValidationTests</code>.</li>
+<li><b>MCP add:</b> MockMvc 401 (no token, inactive, foreign <code>aud</code>), 403 <code>insufficient_scope</code>, PRM JSON, end-to-end outbound header is T2 &ne; T1, exchange failure mapping.</li>
+<li><b>Host add:</b> introspection auth and states; exchange happy path, wrong <code>aud</code> subject, wrong client, scope intersection (viewer gets no <code>mcp:edit</code>); <code>/api</code> rejects T1 and wrong <code>iss</code>; claims; Basic and post client auth. Rename <code>OAuth2IntegrationTests.tokenExchange_*</code> (<code>:232</code>, <code>:280</code>).</li>
+<li><b>Docs:</b> <code>CLAUDE.md:48</code> and <code>:60</code> become true only after this work; update them in the same change.</li>
+</ul>
+</details>
+</div>
+
+<h2 id="followups">Follow-ups (out of scope)</h2>
+<div class="card scroll">
+<table>
+<thead><tr><th>ID</th><th>Item</th><th>Why deferred</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td>FU-1</td><td>DCR openness &rarr; CIMD / pre-registration; DCR null path (probable 500)</td><td>DCR is MAY in 2026-07-28 and still used by Claude</td><td><span class="sev warning">medium</span></td></tr>
+<tr><td>FU-2</td><td>Refresh-token persistence, client binding, reuse detection, absolute lifetime</td><td>AS-wide storage decision</td><td><span class="sev critical">high (MUST)</span></td></tr>
+<tr><td>FU-3</td><td>Tokens, codes, verifiers and secrets logged at INFO</td><td>Mechanical; recommended to bundle (same file as H6)</td><td><span class="sev critical">high (MUST)</span></td></tr>
+<tr><td>FU-4</td><td><code>_token</code> request parameter accepted on every path</td><td>Consent page depends on it; restrict to <code>POST /oauth2/authorize</code></td><td><span class="sev critical">high (MUST)</span></td></tr>
+<tr><td>FU-5</td><td>External default URLs, CORS entry, committed <code>APP_JWT_SECRET</code></td><td>Config hygiene; the <code>aud</code> part is in scope (D-2)</td><td><span class="sev warning">medium</span></td></tr>
+<tr><td>FU-6</td><td>Asymmetric signing + JWKS; optional inbound local JWT (A2c)</td><td>Not needed with introspection</td><td><span class="sev warning">medium</span></td></tr>
+<tr><td>FU-7</td><td><code>private_key_jwt</code> for the MCP server</td><td>Depends on FU-6</td><td><span class="sev info">low</span></td></tr>
+<tr><td>FU-8</td><td>DPoP / mTLS</td><td>No Spring DPoP client; local HTTP; SHOULD only</td><td><span class="sev info">low</span></td></tr>
+<tr><td>FU-9</td><td>SAS migration ADR</td><td>High effort, all or nothing</td><td><span class="sev info">low</span></td></tr>
+<tr><td>FU-10</td><td>CIMD / Enterprise-Managed Authorization (ID-JAG)</td><td>MCP client&harr;server hop only</td><td><span class="sev info">low</span></td></tr>
+<tr><td>FU-11</td><td>Unauthenticated client-info, host 401 without <code>WWW-Authenticate</code>, RFC 9207 <code>iss</code>, MCP <code>Origin</code> validation, DEBUG logs, unencoded <code>state</code></td><td>Not on the hop</td><td><span class="sev info">low</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="decisions">Open design questions for the decision phase</h2>
+<div class="card scroll">
+<table>
+<thead><tr><th>ID</th><th>Question</th><th>Lean</th><th>Conf.</th></tr></thead>
+<tbody>
+<tr><td>D-1</td><td>Inbound validation mode (introspection / cached introspection / local JWT RS256)</td><td>Introspection, no cache</td><td><span class="conf high">High</span></td></tr>
+<tr><td>D-2</td><td><code>aud</code>/<code>resource</code> values</td><td>MCP = <code>aj.mcp.base-url</code> (local default <code>http://localhost:8081</code>); host API = <code>${issuer}/api</code>, distinct from issuer</td><td><span class="conf mh">Med-High</span></td></tr>
+<tr><td>D-3</td><td>Default audience when <code>resource</code> is omitted (J-08)</td><td>Default to the MCP URI for <code>/oauth2/*</code> flows; log a warning</td><td><span class="conf med">Medium</span></td></tr>
+<tr><td>D-4</td><td>Outbound client: hand-written <code>TokenExchangeClient</code> vs Spring provider + interceptor</td><td>Hand-written (fewer hidden defaults)</td><td><span class="conf med">Medium</span></td></tr>
+<tr><td>D-5</td><td>Principal propagation: <code>McpTransportContext</code> vs <code>immediateExecution(true)</code></td><td>Validated <code>Authentication</code> in context</td><td><span class="conf med">Medium</span></td></tr>
+<tr><td>D-6</td><td>Scope hierarchy (MCP-14): independent vs <code>mcp:edit</code> &sup; <code>mcp:read</code></td><td>Decide explicitly; today edit-only cannot GET at host</td><td><span class="conf med">Medium</span></td></tr>
+<tr><td>D-7</td><td>Delegation (<code>act</code>) vs impersonation</td><td>Delegation; AS adds <code>act</code> without <code>actor_token</code></td><td><span class="conf mh">Med-High</span></td></tr>
+<tr><td>D-8</td><td>Should <code>/api</code> reject MCP-audience tokens? Require MCP actor on <code>mcp:*</code>?</td><td>Reject: yes, required. Actor rule: optional</td><td><span class="conf high">High</span> / <span class="conf med">Med</span></td></tr>
+<tr><td>D-9</td><td>MCP server client auth method and seeding</td><td>Basic + post supported; startup seeder from env (no committed hash)</td><td><span class="conf med">Medium</span></td></tr>
+<tr><td>D-10</td><td>HMAC vs asymmetric keys now</td><td>Keep HS256 this task; FU-6 later</td><td><span class="conf high">High</span></td></tr>
+<tr><td>D-11</td><td>Backend token scopes: keep <code>mcp:*</code> vs translate to READ/EDIT</td><td>Keep <code>mcp:*</code> (no matcher change; distinguishable)</td><td><span class="conf med">Medium</span></td></tr>
+<tr><td>D-12</td><td>Exchanged-token caching</td><td>None in this task</td><td><span class="conf high">High</span></td></tr>
+<tr><td>D-13</td><td>Where to intersect scopes with permissions</td><td>Both auth code and exchange (current permissions)</td><td><span class="conf high">High</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="insights">Insights</h2>
+<div class="grid2">
+  <div class="card"><h4>Audience is the missing primitive <span class="conf high">High</span></h4><span class="small">Every brief vulnerability reduces to "no party knows whom a token is for". Exchange without a host-side <code>aud</code> check would leave the reverse path open.</span></div>
+  <div class="card"><h4>Introspection decouples key management <span class="conf high">High</span></h4><span class="small">The MCP server never needs the HMAC key, so the asymmetric migration leaves the critical path.</span></div>
+  <div class="card"><h4>Exchange is where escalation becomes systemic <span class="conf high">High</span></h4><span class="small">Copying subject scopes would mint backend write tokens for <code>viewer</code>s. Intersect.</span></div>
+  <div class="card"><h4>"Only exchange tokens issued to you" <span class="conf high">High</span></h4><span class="small">Tie the MCP server's <code>client_id</code> to the MCP resource URI (Auth0 and Keycloak precedent).</span></div>
+  <div class="card"><h4>Threading dictates outbound wiring <span class="conf high">High</span></h4><span class="small">Spring defaults silently find no principal on <code>boundedElastic</code>.</span></div>
+  <div class="card"><h4>Caching is a security decision here <span class="conf high">High</span></h4><span class="small">On a localhost hop the cost is two local calls per tool call; cache mistakes cause revocation lag and scope bleed.</span></div>
+  <div class="card"><h4>Delegation is free <span class="conf mh">Med-High</span></h4><span class="small">The AS already authenticates the actor, so <code>act</code> needs no <code>actor_token</code>.</span></div>
+  <div class="card"><h4>Candidate standards</h4><span class="small">Metadata advertises only implemented behaviour (with a test per field). Every host JWT carries <code>iss</code> + <code>aud</code> and every RS checks both. Never log tokens, codes, verifiers or secrets.</span></div>
+</div>
+
+<h2>SWOT (recommended approach)</h2>
+<div class="grid2 swot">
+  <div class="card s"><h4>Strengths</h4><span class="small">Meets every MCP-hop MUST; course- and standard-aligned; keeps users, permissions and filters; MCP side mostly deletions + Spring wiring; immediate revocation.</span></div>
+  <div class="card w"><h4>Weaknesses</h4><span class="small">More hand-written security code in the custom AS; two extra local calls per tool call; HS256 remains.</span></div>
+  <div class="card o"><h4>Opportunities</h4><span class="small">Fixes the <code>viewer</code>&rarr;<code>mcp:edit</code> escalation; clean path to JWKS/A2c, <code>private_key_jwt</code>, DPoP; <code>act</code> enables audit of MCP writes; good teaching artefact.</span></div>
+  <div class="card t"><h4>Threats</h4><span class="small">Spring defaults can reintroduce scope bleed; clients omitting <code>resource</code> get a defaulted <code>aud</code>; external default URLs break local <code>aud</code> checks; pre-existing AS MUST violations remain until follow-ups.</span></div>
+</div>
+
+<h2 id="conclusion">Conclusion</h2>
+<div class="card rec">
+<p>The aj MCP server should stop being a relay and become a proper OAuth resource server plus OAuth client. It <b>accepts only tokens whose audience is itself</b>, verified by introspection at the host AS. It <b>authenticates to the AS as its own confidential client</b> and <b>exchanges the user's token (RFC 8693) for a short-lived token audience-restricted to the host API</b> that carries the user as <code>sub</code> and the MCP server as <code>act</code>, with scopes no broader than the user's permissions. The host <b>rejects any token whose audience is not the host API</b>.</p>
+<p class="small">This meets MCP 2026-07-28 (MCP-07, -11, -29, -31), OAuth 2.1 &sect;5.2/&sect;7.1.4, RFC 9068 &sect;4 claim validation, RFC 9700 &sect;2.3 and RFC 8707, and it is the shape the course teaches in M04L07. Confidence: <span class="conf high">High</span> for the direction, <span class="conf mh">Med-High</span> for Spring integration details.</p>
+</div>
+
+<h2 id="appendix">Sources, gaps and contradictions</h2>
+<div class="card">
+<details><summary>Sources</summary>
+<ul class="small">
+<li><b>Findings</b> (<code>analysis/findings/</code>): codebase-mcp-auth-flow, codebase-mcp-vulnerabilities-touchpoints, codebase-host-as-capabilities, codebase-host-as-gaps, course-materials-module4, external-specs-requirements, external-specs-mcp-revision, external-patterns-implementations, external-patterns-caching-effort.</li>
+<li><b>Normative:</b> MCP 2026-07-28 authorization, security considerations, AS discovery, changelog, versioning, Security Best Practices, ext-auth; RFC 8693, 7662, 8707, 9068, 9728, 9700, 6750, 8414, 9449, 8705, 7523; draft-ietf-oauth-v2-1-17 (MCP cites -13).</li>
+<li><b>Patterns:</b> Spring Security 7.1.2 reference and provider source; SAS in Spring Security 7; Keycloak 26; Auth0 OBO and Custom Token Exchange; Entra OBO and MSAL; Okta MCP guide; Cloudflare Agents; Spring AI mcp-security; AWS AgentCore and Azure APIM (low confidence).</li>
+<li><b>Course:</b> <code>_docs/AJ_M04L01..L07_transkrypcja.pdf</code>, <code>AJ_M04L01..L04_prezentacja.pdf</code>.</li>
+<li><b>Team intent:</b> <code>standards/mcp-server/conventions.md:15</code>, which comes from the excluded task, so corroboration only.</li>
+</ul>
+</details>
+<details><summary>Gaps and uncertainties</summary>
+<ul class="small">
+<li>Spring client/RS behaviour (subject resolver, principal resolver, cache key) is inferred, not executed.</li>
+<li>Boot 4 starter names need confirming against the 4.0.5 BOM.</li>
+<li>What real MCP clients send as <code>resource</code> is unverified; this drives D-3.</li>
+<li>Stale <code>mcp-server/target/classes/application.yml</code>; a clean build is needed before runtime checks.</li>
+<li>The DCR null path is inferred; the OAuth 2.1 -17 section number is uncertain; latency is reasoned, not measured.</li>
+<li>The course gives no parameters, claims or caching; all concrete values come from RFCs and vendors.</li>
+</ul>
+</details>
+<details><summary>Contradictions resolved</summary>
+<table>
+<thead><tr><th>Contradiction</th><th>Resolution</th></tr></thead>
+<tbody>
+<tr><td><code>CLAUDE.md:48,60</code> and the team standard describe introspection and exchange that do not exist</td><td>Docs = target intent; code = current; fix the docs in the refactor</td></tr>
+<tr><td>Course L03 "Draft Spec" CIMD vs L05 2026-07-28</td><td>2026-07-28 current; DCR MAY, CIMD SHOULD</td></tr>
+<tr><td>"RFC 8707 requires RS audience check"</td><td>The RS MUST comes from MCP, RFC 9068 &sect;4, RFC 9700 &sect;2.3, OAuth 2.1 &sect;7.1.4</td></tr>
+<tr><td>MCP-11 "no transit" vs sending T1 to the AS</td><td>Returning a token to its issuer is not transit to a resource (Med-High inference)</td></tr>
+<tr><td>"Upstream AS" vs a single AS in aj</td><td>Separation by audience (J-16); RFC 8693 &sect;1 allows it</td></tr>
+<tr><td>SC confused-deputy MUST vs the brief's confused deputy</td><td>The SC MUST covers proxies with static client IDs (N/A); the brief's risk is the BP passthrough accountability risk (applies)</td></tr>
+<tr><td>Industry favours local JWT; course and standard favour introspection</td><td>Both compliant; introspection preferred because of the HMAC key</td></tr>
+<tr><td>Team standard maps <code>mcp:read</code>&rarr;READ vs keep <code>mcp:*</code></td><td>Open (D-11); lean keep <code>mcp:*</code></td></tr>
+</tbody>
+</table>
+</details>
+</div>
+
+</main>
+</body>
+</html>

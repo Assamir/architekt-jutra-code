@@ -13,7 +13,7 @@ Plugin backends (e.g., Next.js API routes) receive the JWT from their own fronte
 const sdk = createServerSDK("my-plugin", undefined, req);
 ```
 
-The SDK extracts the `Authorization` header from the request object automatically.
+The SDK extracts the `Authorization` header from the request object automatically and calls the host at `HOST_BASE_URL` (default `http://localhost:8180`). The forwarded token is the user's login session token (`aud` = `${issuer}/api`). It stays valid whatever `Host` header the plugin backend sends, because the host checks `iss` against the configured `app.oauth2.issuer` (`APP_OAUTH2_ISSUER`), never against the request.
 
 ### Permission Checking in Plugins
 

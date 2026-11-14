@@ -23,10 +23,10 @@ Source: src/main/frontend/src/hooks/useProducts.ts, useCategories.ts, useProduct
 
 ### Relative /api URLs via Vite Dev Proxy
 
-The Vite dev server proxies `/api` to `http://localhost:8080` (`changeOrigin`), and production serves the SPA from the same Spring Boot origin. Frontend code always calls the backend with relative `/api/...` paths and never hardcodes a host or port.
+The Vite dev server proxies `/api` to `http://localhost:8180` (`changeOrigin`), and production serves the SPA from the same Spring Boot origin. Frontend code always calls the backend with relative `/api/...` paths and never hardcodes a host or port.
 
 ```typescript
-fetch("/api/products"); // not "http://localhost:8080/api/products"
+fetch("/api/products"); // not "http://localhost:8180/api/products"
 ```
 
 Source: src/main/frontend/vite.config.ts, pom.xml (frontend-maven-plugin)

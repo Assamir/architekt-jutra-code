@@ -1,0 +1,743 @@
+window.MAISTER_DATA = {
+  "generated": "2026-11-14T18:43:53Z",
+  "task": {
+    "title": "MCP auth refactor - replace token passthrough with validate-then-exchange",
+    "type": "development",
+    "status": "completed",
+    "description": "Module 4 exercise: replace MCP server token passthrough to the host backend with RFC 7662 introspection + aud check inbound and RFC 8693 token exchange (delegation) outbound, aud enforced at host /api, per package P1 from research 2026-11-14-mcp-auth-refactor.",
+    "path": ".maister/tasks/development/2026-11-14-mcp-auth-refactor",
+    "current_activity": null
+  },
+  "characteristics": {
+    "has_reproducible_defect": true,
+    "modifies_existing_code": true,
+    "creates_new_entities": true,
+    "involves_data_operations": true,
+    "ui_heavy": false
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Analyze codebase & clarify requirements",
+      "icon_hint": "analysis",
+      "status": "completed",
+      "started": "2026-11-14T15:41:06Z",
+      "completed": "2026-11-14T15:56:14Z",
+      "skip_reason": null,
+      "summary": "Design change map matches code; host per-request issuer, missing aud and permissions->scopes fallback let T1 reach /api; MCP accepts any bearer. Complex, medium-high risk, 14 design corrections (C1-C14) for the spec.",
+      "decisions": [
+        {
+          "decision": "Configured issuer (`app.oauth2.issuer`) replaces the request-derived `getBaseUrl()` everywhere: login, OAuth tokens, metadata.",
+          "rationale": "With a per-request issuer, enforcing `iss`/`aud` breaks plugin backends (`plugins/server-sdk.ts`, ai-description, ai-offer-analysis) that forward T0 to `http://localhost:8080` under a different Host than the browser used."
+        },
+        {
+          "decision": "New host filters stay non-bean `OncePerRequestFilter`s, `new`'d in `SecurityConfiguration`",
+          "rationale": "(template: `OAuth2TokenFilter`). The `@WebMvcTest` slice in `api/ApiLayerTests` would pick up any `@Component` filter."
+        },
+        {
+          "decision": "Extend the existing `OAuth2TokenFilter` grant dispatch with a `token-exchange` branch; do not add a separate endpoint.",
+          "rationale": "Dispatch is already a single switch (L62-69). DCR's grant whitelist (`PublicClientRegistrationFilter` L135-147) already stops DCR clients from registering the exchange grant."
+        },
+        {
+          "decision": "Client→resource binding stays config-backed (`OAuth2Properties`/`ResourcePolicy`), not a DB column.",
+          "rationale": "`oauth2_registered_client` has no resource or settings column. Grant types round-trip as raw strings, so the token-exchange URN persists without a migration. No new changeset is needed (010 is a gap left by the revert, if one is ever needed)."
+        },
+        {
+          "decision": "Use a startup provisioner (new pattern: `ApplicationRunner` or `@EventListener(ApplicationReadyEvent)`) for `aj-mcp-server`, not a Liquibase seed.",
+          "rationale": "The secret comes from env and must be BCrypt-encoded at runtime. The upsert must reuse the existing row id."
+        },
+        {
+          "decision": "New host code injects the Jackson 3 `tools.jackson` `ObjectMapper`",
+          "rationale": "(per standards and `SecurityConfiguration`). Do not copy the `new com.fasterxml ObjectMapper()` found in the three existing OAuth filters. The MCP side stays on Jackson 2."
+        },
+        {
+          "decision": "The `/api` gate leaves the SecurityContext empty on rejection; it does not write a 401.",
+          "rationale": "The existing entry point produces the 401. Writing it in the filter breaks `@WithMock*` tests and the `_token` path."
+        }
+      ],
+      "risks": [
+        "**Consent UI does not forward `resource`** (`OAuth2AuthorizePage.tsx` L98-105 hidden inputs). The authorize-side `ResourcePolicy` will always take the \"missing → default MCP + WARN\" path, so the \"frontend out of scope\" claim and design Example 4 do not hold. Decide one of: (a) add one hidden input from `searchParams`, or (b) validate `resource` at the token endpoint only. MockMvc tests that POST `resource` directly will hide this gap.",
+        "**Boot 4 resource-server starter name** (likely `spring-boot-starter-security-oauth2-resource-server`) is not in the local `.m2`. Confirm it against the 4.0.5 BOM. The Security 7.0.4 jar has only `SpringOpaqueTokenIntrospector` (the Nimbus introspector is gone).",
+        "**Introspection outage semantics.** `SpringOpaqueTokenIntrospector` throws `OAuth2IntrospectionException` (transport) and `BadOpaqueTokenException` (inactive). The entry point must tell them apart: an outage must not return `invalid_token`. The exact status on Spring's `AuthenticationServiceException` path is still to be confirmed.",
+        "**Rollout.** Stored legacy T0 (no `aud`, 24h) gets one 401, then `client.ts` clears it and redirects to login. But `AuthGuard` passes on any stored token, and the consent page's native form POST with a legacy `_token` yields a raw JSON 403. `client.ts`'s redirect covers only `fetch`.",
+        "**Test-context cost.** The host provisioner runs in every `@SpringBootTest`. Exchange and introspection tests need the secret via `@SpringBootTest(properties=...)`, which creates an extra Spring context (there is no `src/test/resources` today). The MCP fail-fast on a missing secret breaks the 5 MCP `@SpringBootTest` classes unless test properties are added.",
+        "**Logging leaks must be removed in the same change.** They are listed under Concerns. The MCP `application.yml` also has DEBUG on `org.springframework.security`, which logs headers.",
+        "**`_token` request param is read on every endpoint** (`JwtAuthenticationFilter.extractToken` L48). The API parse mode must apply to that path too. The exchange request is form-encoded, and its `subject_token` must never be treated as the principal."
+      ],
+      "artifacts": [
+        {
+          "path": "analysis/codebase-analysis.md",
+          "label": "Codebase analysis",
+          "html": null
+        },
+        {
+          "path": "analysis/clarifications.md",
+          "label": "Clarifications",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-2",
+      "name": "Analyze gaps & clarify scope",
+      "icon_hint": "analysis",
+      "status": "completed",
+      "started": "2026-11-14T15:57:40Z",
+      "completed": "2026-11-14T16:10:33Z",
+      "skip_reason": null,
+      "summary": "Gaps match P1 and C1-C14 plus two new criticals: trailing-slash resource from JS SDK clients breaks exact match, and T2 would be accepted as consent principal at /oauth2/authorize. Port move touches 19 tracked files; risk raised to high.",
+      "decisions": [
+        {
+          "decision": "Characteristics: `has_reproducible_defect` = true (viewer→`mcp:edit` escalation and T1 replay at `/api` both reproduce today, so they become red-first regression tests). `modifies_existing_code` = true. `creates_new_entities` = true (new endpoints, a new grant, about 10 new classes, a provisioned client row). `involves_data_operations` = true (registered client upsert, in-memory code and refresh-token records). `ui_heavy` = false: the only UI change is one hidden `<input>`.",
+          "rationale": ""
+        },
+        {
+          "decision": "Change type: **modificative**. Compatibility: **moderate**. MCP tool contracts are strict (names, schemas and results stay identical). Token formats break on purpose: legacy T0, passthrough T1 and old ports.",
+          "rationale": ""
+        },
+        {
+          "decision": "Port-change blast radius already resets most sessions. localStorage is per origin, so moving the SPA from `:8080` to `:8180` drops every stored T0 on local machines. The \"stale T0 at consent\" risk therefore applies only to tunnel or same-origin deployments.",
+          "rationale": ""
+        },
+        {
+          "decision": "The Boot 4.0.5 BOM in the local `.m2` confirms the starter artifact is `spring-boot-starter-security-oauth2-resource-server` (a `-test` companion exists too). The jar itself is not in `.m2` yet, so the first MCP build needs network access.",
+          "rationale": ""
+        },
+        {
+          "decision": "Jackson 2 stays on the host classpath whatever is decided: `jjwt-jackson` 0.12.6 needs it at runtime. The Jackson question is about code consistency only, not about dropping the dependency.",
+          "rationale": ""
+        }
+      ],
+      "risks": [
+        "**Trailing-slash `resource` mismatch** (Critical decision C-1). Confidence: high on JS `URL` semantics, medium that Claude's SDK version sends `resource.href` taken from PRM.",
+        "**T2 accepted as the user session at `/oauth2/authorize`** (Critical decision C-2).",
+        "**`aj-mcp-server` row survives a blank secret.** ADR-008 says introspection and exchange answer `invalid_client` when the env var is missing. A row provisioned by an earlier `start-dev` run still sits in the persistent Postgres volume with a valid hash, so that claim is false today (I-4).",
+        "**Existing tests rely on omitted parameters.** `OAuth2IntegrationTests` authorises without `scope` and refreshes without `client_id`, so P1's `invalid_scope` and FU-2a rules break it (I-2, I-3).",
+        "**Per-run generated `APP_JWT_SECRET`** in `start-dev` logs every SPA user out on each restart. Starting the host via `start-dev` but the MCP server by hand (or the other way round) makes the client secrets differ, which fails closed with opaque 401s. Both must be documented.",
+        "**Vite dev proxy forwards only `/api`.** In `npm run dev` mode (5173), the consent page's native POST to `/oauth2/authorize` cannot reach the host. This predates the task and is not addressed by it. The manual end-to-end test must use the host-served SPA on `:8180`.",
+        "**Introspection outage status.** Spring Security 7 rethrows `AuthenticationServiceException` by default (expected to surface as 500), but this is unverified for 7.0.4 (I-6).",
+        "**`aud` claim shape.** jjwt `.audience().add()` serialises an array, while Spring's introspector and the host gate must accept either array or string. The spec must pin \"array, contains-match\".",
+        "**`resource=\"\"` from the consent form.** The hidden input must render only when the parameter is present (like `state`), and the host must treat a blank value as missing, not as unknown."
+      ],
+      "artifacts": [
+        {
+          "path": "analysis/gap-analysis.md",
+          "label": "Gap analysis",
+          "html": null
+        },
+        {
+          "path": "analysis/scope-clarifications.md",
+          "label": "Scope clarifications",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-3",
+      "name": "Write failing test (TDD Red)",
+      "icon_hint": "code",
+      "status": "completed",
+      "started": "2026-11-14T16:10:33Z",
+      "completed": "2026-11-14T16:13:18Z",
+      "skip_reason": null,
+      "summary": "4 red tests (2 host, 2 MCP) fail on baseline for the expected reasons: T1 replay at /api 200, viewer gets mcp:edit, MCP accepts any bearer, client token forwarded to backend.",
+      "decisions": [],
+      "risks": [],
+      "artifacts": [
+        {
+          "path": "implementation/tdd-red-gate.md",
+          "label": "TDD red gate",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-4",
+      "name": "Generate UI mockups",
+      "icon_hint": "spec",
+      "status": "skipped",
+      "started": null,
+      "completed": null,
+      "skip_reason": "ui_heavy false",
+      "summary": null,
+      "decisions": [],
+      "risks": [],
+      "artifacts": [],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-5",
+      "name": "Gather requirements & create specification",
+      "icon_hint": "spec",
+      "status": "completed",
+      "started": "2026-11-14T16:13:18Z",
+      "completed": "2026-11-14T16:33:00Z",
+      "skip_reason": null,
+      "summary": "Spec revised after audit: 50 requirements (AS-1..16, SEC-1..4, MCP-1..15, FE-1..4, CFG-1..3, DOC-1..7, RG-1); all audit findings and user clarifications resolved; red tests byte-identical.",
+      "decisions": [
+        {
+          "decision": "Granted scope is computed at `/oauth2/authorize` (consent-time permissions) and stored in the auth code. The token endpoint issues the stored grant, and refresh re-issues it unchanged — this fails early, and current permissions are re-checked at every exchange anyway (ADR-004).",
+          "rationale": ""
+        },
+        {
+          "decision": "The MCP server derives the introspection URI, token URI and backend resource from `aj.oauth.server-url`. No `introspection-uri`/`token-uri`/`backend.resource` properties: one source of truth, and the five property names used by the red test are kept.",
+          "rationale": ""
+        },
+        {
+          "decision": "Exchanged-token TTL is a constant of 300 s, not a property (minimal implementation).",
+          "rationale": ""
+        },
+        {
+          "decision": "The `/api` gate builds authorities from `permissions` for session tokens (no `client_id`) and from `scopes` for delegated tokens (with `client_id`). This replaces the silent `permissions → scopes` fallback (C6).",
+          "rationale": ""
+        },
+        {
+          "decision": "AS helpers (`ClientAuthenticator`, `ResourcePolicy`, `ScopePolicy`, `OAuth2ErrorWriter`, `TokenExchangeGrantHandler`) are plain classes built in `SecurityConfiguration`, like the existing filters. Only `OAuth2Properties` and `McpClientProvisioner` are Spring-managed.",
+          "rationale": ""
+        },
+        {
+          "decision": "No explicit `permitAll` matcher for `/oauth2/introspect`. The existing non-`/api/` matcher already covers it, and the security standard forbids redundant matchers (C4).",
+          "rationale": ""
+        },
+        {
+          "decision": "An unauthenticated or non-session principal at authorize gets typed `access_denied` (403) instead of substring-classified `unauthorized_client`. `UNAUTHORIZED_CLIENT` now maps to 400 (C3).",
+          "rationale": ""
+        },
+        {
+          "decision": "An authenticated client with no bound resource that calls introspection gets `{\"active\":false}`, not 401.",
+          "rationale": ""
+        },
+        {
+          "decision": "`start-dev` generates `AJ_OAUTH_CLIENT_SECRET` per run unless already set. It does not generate `APP_JWT_SECRET`, because the MCP server no longer verifies JWTs and a stable committed fallback keeps SPA sessions alive across restarts. This deliberately narrows the requirements' \"export `APP_JWT_SECRET`\": an already-set value is inherited.",
+          "rationale": ""
+        },
+        {
+          "decision": "MCP security tests reuse the red test's JDK `HttpServer` fake-host pattern. No WireMock/`MockRestServiceServer` and no `spring-security-test` on the MCP side.",
+          "rationale": ""
+        }
+      ],
+      "risks": [
+        "Which `resource` value real MCP clients send (Claude Code, MCP Inspector) is still unverified. C-1 slash-equality covers the expected `X/` form. A manual end-to-end run must record the actual value.",
+        "Introspection outage status (I-6): Spring Security 7 is expected to rethrow `AuthenticationServiceException` (5xx). If it instead reaches the entry point, add a custom 503 failure handler (fallback already decided).",
+        "Starting only one app by hand with a different `AJ_OAUTH_CLIENT_SECRET` fails closed with opaque 401s or tool errors. This must be documented in CLAUDE.md and the plugin README.",
+        "All T0/T1 sessions are invalidated at rollout (new origin, new claims). Users must re-point MCP clients to `http://localhost:8181`.",
+        "The first MCP build needs network access for `spring-boot-starter-security-oauth2-resource-server`.",
+        "The consent page filters scopes on the client side from the T0 `permissions` claim. The server-side `ScopePolicy` remains authoritative."
+      ],
+      "artifacts": [
+        {
+          "path": "analysis/requirements.md",
+          "label": "Requirements",
+          "html": null
+        },
+        {
+          "path": "implementation/spec.md",
+          "label": "Specification",
+          "html": "implementation/spec.html"
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-6",
+      "name": "Audit specification",
+      "icon_hint": "verify",
+      "status": "completed",
+      "started": "2026-11-14T16:33:00Z",
+      "completed": "2026-11-14T16:57:50Z",
+      "skip_reason": null,
+      "summary": "Spec audit: pass-with-concerns, 0 critical, 3 major (introspector timeouts, red-test immutability, test gaps), 15 minor; all 4 red tests traced to pass.",
+      "decisions": [
+        {
+          "decision": "No critical issues",
+          "rationale": "Nothing breaks a red test or opens token confusion"
+        },
+        {
+          "decision": "I-6 and C14 resolved by bytecode evidence",
+          "rationale": "Outage rethrown as 5xx; contextExtractor runs on servlet thread"
+        },
+        {
+          "decision": "User decisions: re-expand mcp:read after client intersection; resource != stored -> invalid_grant; APP_JWT_SECRET inherit-only approved; Basic conflicts only with form client_secret",
+          "rationale": "Phase 6 clarifications"
+        }
+      ],
+      "risks": [
+        "M1 introspector has no timeouts",
+        "M2 red tests must stay byte-identical",
+        "M3 five missing security tests",
+        "Clarifications needed: edit-only expansion, resource mismatch error code, APP_JWT_SECRET narrowing, Basic+client_id"
+      ],
+      "artifacts": [
+        {
+          "path": "verification/spec-audit.md",
+          "label": "Spec audit (transcribed)",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-7",
+      "name": "Plan implementation",
+      "icon_hint": "plan",
+      "status": "completed",
+      "started": "2026-11-14T16:57:50Z",
+      "completed": "2026-11-14T17:08:59Z",
+      "skip_reason": null,
+      "summary": "17 task groups, 104 steps, ~94 new tests; host chain G2-G9 serial, MCP chain G10-G13 parallel, frontend G14 and dev wiring G15 parallel; docs G16, final verification G17; no commit step.",
+      "decisions": [
+        {
+          "decision": "No commit step (planning constraint overrides the spec's \"implementation step 0\").",
+          "rationale": "G1 records the SHA-256 of both red-test files in `implementation/rg1-baseline.sha256` and G17 re-checks them with `sha256sum -c`. Committing the baseline and the work stays the user's decision."
+        },
+        {
+          "decision": "Host groups form one dependency chain (G2 → … → G9).",
+          "rationale": "They share one Maven module and one `target/` directory. A host group that is mid-edit breaks compilation for any other host group's `./mvnw test`, and parallel Testcontainers runs would race. `SecurityConfiguration`, `OAuth2TokenFilter` and `OAuth2TestFlows` are edited by several of these groups, and the chain serialises them."
+        },
+        {
+          "decision": "The MCP chain (G10 → G13) runs alongside the host chain.",
+          "rationale": "It is a separate Maven project (`mcp-server/`) with its own `target/` and no Docker. It shares no files with the host groups. Its tests use a fake host, so it never needs the real host."
+        },
+        {
+          "decision": "Bridge edits keep the host module compiling between groups.",
+          "rationale": "G2 makes the smallest change to `OAuth2TokenFilter` needed for the new `JwtTokenProvider` API (configured issuer, T1 `aud` = MCP resource). G4 makes the smallest change needed for the new `AuthorizationCodeData`. G5 then rewrites the filter in full. Each group leaves `./mvnw test` green for the suites it touches."
+        },
+        {
+          "decision": "Test counts follow the audited spec test list, not the 2-8 default.",
+          "rationale": "Groups G3 (23 unit tests) and G7/G11 (10-11 tests) go over the default. The spec names every test, the change is a high-risk security boundary, and the pure-logic unit tests are cheap. G17 is still capped at 10 extra tests."
+        },
+        {
+          "decision": "The authorize-time test for \"T2 as `_token`\" mints a T2-shaped token directly through `JwtTokenProvider.generateOAuth2Token`",
+          "rationale": "(`aud` = API, `client_id`, `act`). G4 can then test C-2 before the exchange grant exists in G7."
+        },
+        {
+          "decision": "`TokenExchangeClientTests` uses its own small JDK `HttpServer`.",
+          "rationale": "`FakeHost` is package-private in `security` (per the spec) and is not visible from the `client` package."
+        },
+        {
+          "decision": "The two red-test files are read-only for every group (RG-1).",
+          "rationale": "`OAuth2TestFlows` and `FakeHost` copy their patterns but never import them."
+        }
+      ],
+      "risks": [
+        "**`ApiLayerTests` (`@WebMvcTest`) and the `SecurityConfiguration` constructor.** G2, G4, G5, G7 and G8 add dependencies to `SecurityConfiguration`. If the web slice loads that class, missing beans break the slice. Each of these groups reruns `ApiLayerTests`. If it breaks, the fix is to keep the new collaborators non-beans built inside the configuration (as the spec already requires), not to change the test.",
+        "**First MCP build needs network** for `spring-boot-starter-security-oauth2-resource-server` (G10).",
+        "**Host test runs need Docker**, and `-Dskip.jooq.generation=true` works only if `target/generated-sources/jooq` exists. If it does not, run the first G2 test command without that flag.",
+        "**The stall test in G11 runs for more than 10 s by design** (read timeout). Do not shorten the production timeout to speed it up.",
+        "**The manual end-to-end gate (Success Criterion 8: a real MCP client against `http://localhost:8181`, recording the `resource` value sent) is not automated here.** It belongs to the workflow's verification phase.",
+        "**Exchange-time permission revocation test (G7).** It changes the user's permissions in the DB between consent and exchange inside a `@Transactional` test. MockMvc runs on the test thread, so the change is visible and rolled back. If isolation surprises arise, use a dedicated test user instead of mutating `viewer`/`editor`.",
+        "**Task-tracking items could not be created.** `TaskCreate`/`TaskUpdate` are not available in this planner session. The group dependencies below are the source of truth for the executor."
+      ],
+      "artifacts": [
+        {
+          "path": "implementation/implementation-plan.md",
+          "label": "Implementation plan",
+          "html": "implementation/implementation-plan.html"
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-8",
+      "name": "Execute implementation",
+      "icon_hint": "code",
+      "status": "completed",
+      "started": "2026-11-14T17:08:59Z",
+      "completed": "2026-11-14T17:57:46Z",
+      "skip_reason": null,
+      "summary": "All 17 groups / 104 steps done. Host 209/209, MCP 49/49, frontend 87/88 (1 pre-existing stale test), lint unchanged (16 pre-existing). 4 red tests green, RG-1 hashes OK. No commits.",
+      "decisions": [
+        {
+          "decision": "WellKnownController deleted; PRM served by Spring Security 7 OAuth2ProtectedResourceMetadataFilter via protectedResourceMetadataCustomizer",
+          "rationale": "Security 7 auto-registers the filter and shadowed the controller"
+        },
+        {
+          "decision": "Tool errors remain JSON-RPC errors (code -32603)",
+          "rationale": "Unchanged pre-refactor contract"
+        },
+        {
+          "decision": "OAuth 500s logged with error_type only, no stack trace",
+          "rationale": "Strict AS-15: exception messages can echo input"
+        },
+        {
+          "decision": "No git commits; RG-1 guarded by SHA-256",
+          "rationale": "Committing is the user decision"
+        }
+      ],
+      "risks": [
+        "Pre-existing: frontend lint 16 problems, stale extension-points test",
+        "JacksonMcpJsonMapper logs JSON-RPC payloads at INFO (no tokens)",
+        "No dummy BCrypt for unknown clients (timing oracle)",
+        "Manual end-to-end check with a real MCP client still pending",
+        "Tracked plugins/{box-size,warehouse}/dist still reference 8080"
+      ],
+      "artifacts": [
+        {
+          "path": "implementation/work-log.md",
+          "label": "Work log",
+          "html": null
+        },
+        {
+          "path": "implementation/implementation-plan.md",
+          "label": "Implementation plan (all checked)",
+          "html": "implementation/implementation-plan.html"
+        },
+        {
+          "path": "implementation/rg1-baseline.sha256",
+          "label": "Red-gate hash guard",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": {
+        "groups_done": 17,
+        "groups_total": 17,
+        "current_wave": null,
+        "skipped": [],
+        "reverted": []
+      }
+    },
+    {
+      "id": "phase-9",
+      "name": "Verify test passes (TDD Green)",
+      "icon_hint": "verify",
+      "status": "completed",
+      "started": "2026-11-14T17:58:00Z",
+      "completed": "2026-11-14T17:59:15Z",
+      "skip_reason": null,
+      "summary": "4/4 red tests pass; RG-1 hashes OK.",
+      "decisions": [],
+      "risks": [],
+      "artifacts": [
+        {
+          "path": "implementation/tdd-green-gate.md",
+          "label": "TDD green gate",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-10",
+      "name": "Prompt verification options",
+      "icon_hint": "verify",
+      "status": "completed",
+      "started": "2026-11-14T17:59:15Z",
+      "completed": "2026-11-14T18:01:31Z",
+      "skip_reason": null,
+      "summary": null,
+      "decisions": [],
+      "risks": [],
+      "artifacts": [],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-11",
+      "name": "Verify implementation & resolve issues",
+      "icon_hint": "verify",
+      "status": "completed",
+      "started": "2026-11-14T18:01:31Z",
+      "completed": "2026-11-14T18:40:58Z",
+      "skip_reason": null,
+      "summary": "Passed with issues after 2 fix cycles: plan 100%, tests 390/391 (1 pre-existing), 0 critical, 5 remaining warnings (manual run, commit baseline, HMAC fallback, BCrypt cost, AS health) — none fixable in code here.",
+      "decisions": [],
+      "risks": [
+        "No live end-to-end run with a real MCP client",
+        "RG-1 baseline uncommitted",
+        "Committed HMAC fallback secret"
+      ],
+      "artifacts": [
+        {
+          "path": "verification/implementation-verification.md",
+          "label": "Implementation verification",
+          "html": "verification/implementation-verification.html"
+        },
+        {
+          "path": "verification/completeness-report.md",
+          "label": "Completeness",
+          "html": null
+        },
+        {
+          "path": "verification/test-suite-results.md",
+          "label": "Test suite",
+          "html": null
+        },
+        {
+          "path": "verification/code-review-report.md",
+          "label": "Code review",
+          "html": null
+        },
+        {
+          "path": "verification/pragmatic-review.md",
+          "label": "Pragmatic review",
+          "html": null
+        },
+        {
+          "path": "verification/production-readiness-report.md",
+          "label": "Production readiness",
+          "html": null
+        },
+        {
+          "path": "verification/reality-check.md",
+          "label": "Reality check",
+          "html": null
+        },
+        {
+          "path": "verification/code-review-reverify.md",
+          "label": "Code review (re-verify)",
+          "html": null
+        },
+        {
+          "path": "verification/completeness-reverify.md",
+          "label": "Completeness (re-verify)",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-12",
+      "name": "Run E2E tests",
+      "icon_hint": "verify",
+      "status": "skipped",
+      "started": null,
+      "completed": null,
+      "skip_reason": "e2e disabled (ui_heavy false)",
+      "summary": null,
+      "decisions": [],
+      "risks": [],
+      "artifacts": [],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-13",
+      "name": "Generate user documentation",
+      "icon_hint": "docs",
+      "status": "completed",
+      "started": "2026-11-14T18:40:58Z",
+      "completed": "2026-11-14T18:43:27Z",
+      "skip_reason": null,
+      "summary": "User guide written (no screenshots: apps not running, agent did not start them). Covers what changed, ports, start-dev/.aj-dev.env, connecting an MCP client, consent scopes, troubleshooting.",
+      "decisions": [],
+      "risks": [
+        "Edit data not pre-ticked on consent page; editors clicking Allow get read-only access",
+        "Claude Code mcp add command not verified live"
+      ],
+      "artifacts": [
+        {
+          "path": "documentation/user-guide.md",
+          "label": "User guide",
+          "html": null
+        }
+      ],
+      "gate": null,
+      "progress": null
+    },
+    {
+      "id": "phase-14",
+      "name": "Finalize workflow",
+      "icon_hint": "done",
+      "status": "completed",
+      "started": "2026-11-14T18:43:53Z",
+      "completed": "2026-11-14T18:43:53Z",
+      "skip_reason": null,
+      "summary": null,
+      "decisions": [],
+      "risks": [],
+      "artifacts": [],
+      "gate": null,
+      "progress": null
+    }
+  ],
+  "verification": {
+    "status": "passed_with_issues",
+    "issues": [
+      {
+        "severity": "warning",
+        "category": "reality",
+        "description": "No live end-to-end run with a real MCP client; resource value unverified",
+        "fixable": false,
+        "fixed": false
+      },
+      {
+        "severity": "warning",
+        "category": "code_review",
+        "description": "code/refresh grants and authorize do not enforce client grant types",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "warning",
+        "category": "completeness",
+        "description": "PRM advertises tls_client_certificate_bound_access_tokens true",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "warning",
+        "category": "code_review",
+        "description": "Redirect Location concatenation; state not URL-encoded (pre-existing)",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "warning",
+        "category": "pragmatic",
+        "description": "Unexpected OAuth 500s logged without stack trace",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "warning",
+        "category": "pragmatic",
+        "description": "MCP server cannot restart alone: start-dev secret not persisted",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "warning",
+        "category": "completeness",
+        "description": "RG-1 red-test files untracked (commit needed)",
+        "fixable": false,
+        "fixed": false
+      },
+      {
+        "severity": "warning",
+        "category": "code_review",
+        "description": "Committed HMAC fallback app.jwt.secret (pre-existing, user-approved)",
+        "fixable": false,
+        "fixed": false
+      },
+      {
+        "severity": "warning",
+        "category": "production",
+        "description": "BCrypt cost per tool call / unauthenticated CPU burn, no rate limit",
+        "fixable": false,
+        "fixed": false
+      },
+      {
+        "severity": "warning",
+        "category": "production",
+        "description": "Secret/issuer mismatch only detected at request time; no AS health check",
+        "fixable": false,
+        "fixed": false
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "No guard against mcp-resource overlapping API audience",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "completeness",
+        "description": "Docs say secret mismatch fails with 401; MCP client sees 5xx",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "Rejection logs show client_id=null for Basic callers; unsanitised client_id",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "No dummy BCrypt for unknown clients (timing oracle)",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "pragmatic",
+        "description": "RestClientConfig uses @Value instead of AjProperties.backend()",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "production",
+        "description": "JacksonMcpJsonMapper logs JSON-RPC payloads at INFO (pre-existing)",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "AJ_OAUTH_CLIENT_SECRET exported to plugin processes",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "completeness",
+        "description": "Spec text not updated for approved deviations; CLAUDE.md stale note",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "Untested edge cases (refresh race, short subject exp, deleted user, foreign aud, MCP client in code flow)",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "test_suite",
+        "description": "Pre-existing frontend lint (16) and stale extension-points test",
+        "fixable": false,
+        "fixed": false
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "Cycle-2 items: claimed client id on failed Basic, Unicode sanitiser, DCR redirect validation, README/CLAUDE.md DEBUG docs, strict PRM test, spec notes, log format",
+        "fixable": true,
+        "fixed": true
+      },
+      {
+        "severity": "info",
+        "category": "code_review",
+        "description": "Pre-existing open redirect on consent Cancel button (follow-up)",
+        "fixable": false,
+        "fixed": false
+      }
+    ],
+    "fixes": [
+      "V-W2 grant-type enforcement",
+      "V-W3 PRM mTLS flag false",
+      "V-W4 encoded redirect building",
+      "V-W5 DEBUG stack traces",
+      "V-W6 persistent dev secret (.aj-dev.env)",
+      "info a mcp-resource guard",
+      "info b docs wording",
+      "info c identified/sanitised client id in logs",
+      "info d dummy BCrypt",
+      "info e AjProperties backend url",
+      "info f payload logging to DEBUG",
+      "info g secret not exported to plugins",
+      "info h spec deviations + CLAUDE.md note",
+      "info i host edge tests",
+      "cycle 2: 8 info items (Fix Group C)"
+    ],
+    "reverify_count": 2
+  }
+};

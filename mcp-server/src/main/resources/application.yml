@@ -1,10 +1,10 @@
 server:
-  port: 8081
+  port: 8181
   shutdown: graceful
 
 management:
   server:
-    port: 9081
+    port: 9181
   endpoints:
     web:
       exposure:
@@ -21,16 +21,10 @@ spring:
 
 aj:
   backend:
-    url: ${AJ_BACKEND_URL:http://localhost:8080}
+    url: ${AJ_BACKEND_URL:http://localhost:8180}
   oauth:
-    server-url: ${AJ_OAUTH_SERVER_URL:https://kuba-app.labs-skillpanel.com}
-    client-id: ${AJ_OAUTH_CLIENT_ID:mcp-server}
-    client-secret: ${AJ_OAUTH_CLIENT_SECRET:mcp-server-secret}
+    server-url: ${AJ_OAUTH_SERVER_URL:http://localhost:8180}
+    client-id: ${AJ_OAUTH_CLIENT_ID:aj-mcp-server}
+    client-secret: ${AJ_OAUTH_CLIENT_SECRET:}
   mcp:
-    base-url: ${AJ_MCP_BASE_URL:https://kuba-mcp.labs-skillpanel.com}
-
-logging:
-  level:
-    pl.devstyle: DEBUG
-    org.springframework.security: DEBUG
-    io.modelcontextprotocol: DEBUG
+    base-url: ${AJ_MCP_BASE_URL:http://localhost:8181}

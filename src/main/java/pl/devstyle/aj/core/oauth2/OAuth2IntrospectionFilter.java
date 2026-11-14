@@ -1,34 +1,49 @@
 package pl.devstyle.aj.core.oauth2;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.web.filter.OncePerRequestFilter;
 import pl.devstyle.aj.core.security.JwtTokenProvider;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
+/**
+ * RFC 7662 token introspection for confidential resource-server clients. A token is reported active only when
+ * its audience contains the resource bound to the calling client; every other case yields {@code active: false}.
+ */
 @Slf4j
-public class OAuth2IntrospectionFilter extends org.springframework.web.filter.OncePerRequestFilter {
+public class OAuth2IntrospectionFilter extends OncePerRequestFilter {
 
     private static final String INTROSPECTION_ENDPOINT = "/oauth2/introspect";
 
-    private final OAuth2ClientAuthenticator clientAuthenticator;
+    private final ClientAuthenticator clientAuthenticator;
+    private final ResourcePolicy resourcePolicy;
     private final JwtTokenProvider jwtTokenProvider;
+    private final OAuth2Properties properties;
+    private final OAuth2ErrorWriter errorWriter;
     private final ObjectMapper objectMapper;
 
-    public OAuth2IntrospectionFilter(OAuth2ClientAuthenticator clientAuthenticator,
-                                     JwtTokenProvider jwtTokenProvider) {
+    public OAuth2IntrospectionFilter(ClientAuthenticator clientAuthenticator,
+                                     ResourcePolicy resourcePolicy,
+                                     JwtTokenProvider jwtTokenProvider,
+                                     OAuth2Properties properties,
+                                     OAuth2ErrorWriter errorWriter,
+                                     ObjectMapper objectMapper) {
         this.clientAuthenticator = clientAuthenticator;
+        this.resourcePolicy = resourcePolicy;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.objectMapper = new ObjectMapper();
+        this.properties = properties;
+        this.errorWriter = errorWriter;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -39,101 +54,45 @@ public class OAuth2IntrospectionFilter extends org.springframework.web.filter.On
             return;
         }
 
-        log.info("Introspection request received");
-
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        response.setHeader(HttpHeaders.PRAGMA, "no-cache");
         try {
-            // Authenticate the calling client
-            var credentials = clientAuthenticator.extractCredentials(request);
-            if (credentials.isEmpty()) {
-                sendError(response, OAuth2Error.INVALID_CLIENT, "Client authentication required");
-                return;
-            }
-
-            var client = clientAuthenticator.authenticate(credentials.get());
-            if (client.isEmpty()) {
-                sendError(response, OAuth2Error.INVALID_CLIENT, "Client authentication failed");
-                return;
-            }
-
-            // Validate the token parameter
-            String token = request.getParameter("token");
-            if (token == null || token.isBlank()) {
-                sendInactiveResponse(response);
-                return;
-            }
-
-            var claimsOpt = jwtTokenProvider.parseRawClaims(token);
-            if (claimsOpt.isEmpty()) {
-                sendInactiveResponse(response);
-                return;
-            }
-
-            var claims = claimsOpt.get();
-
-            // Build active introspection response per RFC 7662
-            Map<String, Object> introspectionResponse = new LinkedHashMap<>();
-            introspectionResponse.put("active", true);
-            introspectionResponse.put("sub", claims.getSubject());
-
-            // Convert scopes list to space-delimited string
-            @SuppressWarnings("unchecked")
-            List<String> scopes = claims.get("scopes", List.class);
-            if (scopes != null && !scopes.isEmpty()) {
-                introspectionResponse.put("scope", scopes.stream().collect(Collectors.joining(" ")));
-            }
-
-            introspectionResponse.put("exp", claims.getExpiration().getTime() / 1000);
-            introspectionResponse.put("iat", claims.getIssuedAt().getTime() / 1000);
-
-            if (claims.getIssuer() != null) {
-                introspectionResponse.put("iss", claims.getIssuer());
-            }
-
-            if (claims.getAudience() != null && !claims.getAudience().isEmpty()) {
-                var audience = claims.getAudience();
-                introspectionResponse.put("aud", audience.size() == 1 ? audience.iterator().next() : audience);
-            }
-
-            introspectionResponse.put("token_type", "Bearer");
-            introspectionResponse.put("client_id", credentials.get().clientId());
-
-            sendJsonResponse(response, introspectionResponse);
-
-            log.info("Introspection response | active=true | sub={} | client_id={}",
-                    claims.getSubject(), credentials.get().clientId());
-
-        } catch (Exception e) {
-            log.error("Introspection endpoint error | reason={}", e.getMessage(), e);
+            writeResponse(response, introspect(request));
+        } catch (OAuth2RequestException e) {
+            log.warn("OAuth2 introspection rejected | client_id={} | error={}",
+                    OAuth2LogValues.clientId(request), e.getError().getError());
+            errorWriter.write(response, e.getError(), e.getDescription());
+        } catch (RuntimeException e) {
+            log.error("OAuth2 introspection endpoint error | client_id={} | error_type={}",
+                    OAuth2LogValues.clientId(request), e.getClass().getName());
+            log.debug("OAuth2 introspection endpoint error details", e);
             if (!response.isCommitted()) {
-                sendError(response, OAuth2Error.SERVER_ERROR, "Internal server error");
+                errorWriter.write(response, OAuth2Error.SERVER_ERROR, "Internal server error");
             }
         }
     }
 
-    private void sendInactiveResponse(HttpServletResponse response) throws IOException {
-        sendJsonResponse(response, Map.of("active", false));
+    private IntrospectionResponse introspect(HttpServletRequest request) {
+        RegisteredClient client = clientAuthenticator.authenticateConfidential(request);
+        String token = request.getParameter("token");
+        if (token == null || token.isBlank()) {
+            throw new OAuth2RequestException(OAuth2Error.INVALID_REQUEST, "Missing required parameter: token");
+        }
+
+        Optional<String> boundResource = resourcePolicy.boundResourceOf(client.getClientId());
+        return boundResource
+                .flatMap(resource -> jwtTokenProvider.parseAccessToken(token)
+                        .filter(parsed -> resourcePolicy.audienceContains(parsed.audience(), resource)))
+                .map(parsed -> IntrospectionResponse.active(parsed, properties.issuer()))
+                .orElseGet(IntrospectionResponse::inactive);
     }
 
-    private void sendJsonResponse(HttpServletResponse response, Map<String, Object> body) throws IOException {
+    private void writeResponse(HttpServletResponse response, IntrospectionResponse introspection)
+            throws IOException {
         response.setStatus(HttpServletResponse.SC_OK);
-        response.setContentType("application/json");
-        byte[] json = objectMapper.writeValueAsBytes(body);
-        response.getOutputStream().write(json);
-        response.getOutputStream().flush();
-    }
-
-    private void sendError(HttpServletResponse response, OAuth2Error error, String description) throws IOException {
-        int status = switch (error) {
-            case INVALID_CLIENT -> HttpServletResponse.SC_UNAUTHORIZED;
-            case UNAUTHORIZED_CLIENT, ACCESS_DENIED -> HttpServletResponse.SC_FORBIDDEN;
-            case SERVER_ERROR -> HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
-            default -> HttpServletResponse.SC_BAD_REQUEST;
-        };
-        log.warn("OAuth2 introspection error | error={} | description={} | status={}", error, description, status);
-        response.setStatus(status);
-        response.setContentType("application/json");
-        byte[] body = objectMapper.writeValueAsBytes(OAuth2ErrorResponse.of(error, description));
-        response.getOutputStream().write(body);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getOutputStream().write(objectMapper.writeValueAsBytes(introspection));
         response.getOutputStream().flush();
     }
 }

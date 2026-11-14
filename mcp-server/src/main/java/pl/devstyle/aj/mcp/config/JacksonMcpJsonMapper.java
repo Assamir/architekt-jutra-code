@@ -61,7 +61,7 @@ public class JacksonMcpJsonMapper implements McpJsonMapper {
     public String writeValueAsString(Object value) throws IOException {
         try {
             String result = objectMapper.writeValueAsString(value);
-            log.info("writeValueAsString({}) => {}", value != null ? value.getClass().getSimpleName() : "null", result);
+            log.debug("writeValueAsString({}) => {} chars", value != null ? value.getClass().getSimpleName() : "null", result.length());
             return result;
         } catch (Exception e) {
             log.error("writeValueAsString FAILED for {}: {}", value != null ? value.getClass().getName() : "null", e.getMessage(), e);
@@ -73,7 +73,7 @@ public class JacksonMcpJsonMapper implements McpJsonMapper {
     public byte[] writeValueAsBytes(Object value) throws IOException {
         try {
             byte[] result = objectMapper.writeValueAsBytes(value);
-            log.debug("writeValueAsBytes({}) => {}bytes", value != null ? value.getClass().getSimpleName() : "null", result.length);
+            log.debug("writeValueAsBytes({}) => {} bytes", value != null ? value.getClass().getSimpleName() : "null", result.length);
             return result;
         } catch (Exception e) {
             log.error("writeValueAsBytes FAILED for {}: {}", value != null ? value.getClass().getName() : "null", e.getMessage(), e);

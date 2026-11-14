@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface RegisteredClientJpaRepository extends JpaRepository<RegisteredClientEntity, UUID> {
 
     Optional<RegisteredClientEntity> findByClientId(String clientId);
+
+    long deleteByClientId(String clientId);
 }

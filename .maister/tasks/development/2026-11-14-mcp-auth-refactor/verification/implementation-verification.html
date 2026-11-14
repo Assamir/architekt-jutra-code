@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation Verification — MCP auth refactor (validate-then-exchange)</title>
+<style>
+:root {
+  --bg:#f6f7f9; --surface:#fff; --border:#e2e5ea; --text:#1a1d23; --dim:#6b7280;
+  --accent:#4f46e5; --accent-soft:#eef2ff; --ok:#16a34a; --ok-soft:#ecfdf3;
+  --warn:#d97706; --warn-soft:#fffbeb; --crit:#dc2626; --crit-soft:#fef2f2;
+  --info:#2563eb; --info-soft:#eff6ff; --radius:10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --surface:#1a1f26; --border:#2e3640; --text:#e6e9ee; --dim:#9aa4b2;
+    --accent:#818cf8; --accent-soft:#26294a; --ok:#4ade80; --ok-soft:#11291a;
+    --warn:#fbbf24; --warn-soft:#2e2410; --crit:#f87171; --crit-soft:#321616;
+    --info:#60a5fa; --info-soft:#15233a; }
+}
+* { box-sizing:border-box; }
+body { margin:0 auto; max-width:1100px; padding:24px 20px 64px; background:var(--bg);
+  color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+h1 { font-size:22px; letter-spacing:-.01em; } h2 { font-size:16px; margin-top:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; margin:14px 0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.04em; padding:2px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+.sev { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  padding:1.5px 7px; border-radius:99px; margin-right:6px; }
+.sev.critical { background:var(--crit-soft); color:var(--crit); }
+.sev.warning  { background:var(--warn-soft); color:var(--warn); }
+.sev.info     { background:var(--info-soft); color:var(--info); }
+.pass { color:var(--ok); font-weight:600; } .fail { color:var(--crit); font-weight:600; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;
+  background:var(--accent-soft); padding:1px 5px; border-radius:4px; }
+img.shot { max-width:100%; border:1px solid var(--border); border-radius:var(--radius); }
+details > summary { cursor:pointer; font-weight:600; }
+
+.crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }
+.crumbs a.md { margin-left:auto; color:var(--dim); }
+.crumbs .here { font-weight:650; color:var(--text); }
+.tiles { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:10px 16px; text-align:center; min-width:90px; }
+.tile b { display:block; font-size:20px; letter-spacing:-.01em; }
+.tile span { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); }
+
+header .meta { color:var(--dim); font-size:12.5px; }
+header h1 { margin:6px 0 4px; }
+.banner { display:flex; align-items:center; gap:16px; flex-wrap:wrap; border-radius:var(--radius);
+  padding:14px 18px; margin:14px 0; border:1px solid var(--warn); background:var(--warn-soft); }
+.banner .verdict { font-size:18px; font-weight:700; color:var(--warn); }
+.banner .counts { display:flex; gap:6px; flex-wrap:wrap; }
+.banner .note { color:var(--dim); font-size:12.5px; flex-basis:100%; }
+.tldr ul { margin:6px 0 0; padding-left:20px; }
+.tldr h3 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:14px 0 4px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:760px){ .grid2 { grid-template-columns:1fr; } }
+.toc { font-size:13px; color:var(--dim); margin:10px 0 4px; }
+.st-ok { color:var(--ok); font-weight:600; white-space:nowrap; }
+.st-warn { color:var(--warn); font-weight:600; white-space:nowrap; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; }
+th.num { text-align:right; }
+.yes { color:var(--ok); font-weight:700; text-align:center; }
+.no { color:var(--crit); font-weight:700; text-align:center; }
+.matrix th:not(:first-child) { text-align:center; }
+.history { border:2px solid var(--accent); }
+.history h2 { margin-top:0; }
+.cyc { display:inline-block; min-width:26px; text-align:center; font-weight:700; border-radius:99px;
+  padding:1px 8px; font-size:12px; }
+.cyc.c1 { background:var(--accent-soft); color:var(--accent); }
+.cyc.c2 { background:var(--info-soft); color:var(--info); }
+.ok-chip { color:var(--ok); font-weight:600; }
+.trend { font-size:13px; margin-top:10px; color:var(--dim); }
+.checklist { list-style:none; padding-left:0; margin:0; }
+.checklist li::before { content:"\2611  "; color:var(--ok); }
+ol.recs li { margin-bottom:6px; }
+.reports a { white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<nav class="crumbs">
+  <a href="../dashboard.html">&larr; Dashboard</a>
+  <a href="../implementation/spec.html">Spec</a>
+  <a href="../implementation/implementation-plan.html">Plan</a>
+  <span class="here">Verification</span>
+  <a href="implementation-verification.md" target="_blank" rel="noopener" class="md">md twin &#8599;</a>
+</nav>
+
+<header>
+  <span class="badge">Implementation Verification</span>
+  <h1>MCP auth refactor (validate-then-exchange)</h1>
+  <div class="meta">Canonical verdict after 2 fix &amp; re-verification cycles (reverify_count = 2). Supersedes the cycle-1 report.</div>
+</header>
+
+<div class="banner">
+  <div class="verdict">&#9888;&#65039; Passed with Issues</div>
+  <div class="counts">
+    <span class="sev critical">0 critical</span>
+    <span class="sev warning">5 warning</span>
+    <span class="sev info">~8 info</span>
+  </div>
+  <div class="note">After 2 fix cycles. Remaining warnings are none fixable in code here: manual run, commit, design/follow-up.</div>
+</div>
+
+<div class="tiles">
+  <div class="tile"><b>104/104</b><span>plan steps (100%)</span></div>
+  <div class="tile"><b>390/391</b><span>tests passing</span></div>
+  <div class="tile"><b>4/4</b><span>TDD tests green</span></div>
+  <div class="tile"><b>23</b><span>findings fixed</span></div>
+  <div class="tile"><b>0 / 5 / ~8</b><span>crit / warn / info</span></div>
+</div>
+
+<section class="tldr card" id="tldr">
+  <div class="grid2">
+    <div>
+      <h3>TL;DR</h3>
+      <ul>
+        <li>Verdict: <strong>&#9888;&#65039; Passed with Issues</strong> &mdash; 0 critical, 5 warning (none fixable in code here: manual run, commit, design/follow-up), ~8 info.</li>
+        <li>Plan 104/104 (100%); tests 390/391 &mdash; host 252/252, MCP 51/51, frontend 87/88 (the 1 failure and 16 lint problems are pre-existing, untouched).</li>
+        <li>4/4 TDD tests green; RG-1 hashes OK. Token passthrough, confused deputy, audience replay and scope escalation are eliminated and covered by boundary tests.</li>
+        <li>All 14 cycle-1 fixable findings and all 9 cycle-2 info items resolved with tests; no regressions.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Open Questions / Risks</h3>
+      <ul>
+        <li><span class="sev warning">warning</span>No live end-to-end run of host + MCP server with a real MCP client (Claude Code / MCP Inspector); the <code>resource</code> value real clients send is still unrecorded. An agent attempt was blocked by the permission system and not circumvented.</li>
+        <li><span class="sev warning">warning</span>RG-1 git baseline needs the two red-test files committed (hash guard passes).</li>
+        <li><span class="sev warning">warning</span>Committed HMAC fallback <code>app.jwt.secret</code> can forge any token for repo readers (pre-existing; user-approved not to generate) &mdash; blocker for any public exposure.</li>
+        <li><span class="sev warning">warning</span>BCrypt per tool call (+1 for unknown clients via the dummy hash) and no rate limiting &mdash; acceptable locally, a blocker for public exposure.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<nav class="toc">Contents:
+  <a href="#summary">Executive Summary</a> &middot;
+  <a href="#checks">Results by Check</a> &middot;
+  <a href="#tests">Test Suite</a> &middot;
+  <a href="#matrix">Token Matrix</a> &middot;
+  <a href="#issues">Remaining Issues</a> &middot;
+  <a href="#history">Fix &amp; Re-Verification History</a> &middot;
+  <a href="#recs">Recommendations</a> &middot;
+  <a href="#checklist">Checklist</a>
+</nav>
+
+<main>
+
+<section id="summary">
+  <h2>Executive Summary</h2>
+  <div class="card">
+    All 50 (now 51 incl. AS-17) spec requirements are implemented and tested. Two verification cycles fixed 23 findings (grant-type enforcement, PRM flag, encoded redirects, DCR redirect validation, diagnosable but secret-free logging, restartable dev secret isolated from plugins, docs/spec alignment). What remains is a manual integration run, a commit only the user can make, and operational hardening outside this task's scope.
+  </div>
+</section>
+
+<section id="checks">
+  <h2>Results by Check (final)</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Check</th><th>Report(s)</th><th>Final status</th></tr></thead>
+      <tbody>
+        <tr><td>Completeness</td>
+          <td class="reports"><a href="completeness-report.md" target="_blank" rel="noopener">completeness-report.md</a><br><a href="completeness-reverify.md" target="_blank" rel="noopener">completeness-reverify.md</a></td>
+          <td><span class="st-warn">&#9888;&#65039;</span> 100% plan; remaining W1 (commit), W2 (manual run)</td></tr>
+        <tr><td>Test suite</td>
+          <td class="reports"><a href="test-suite-results.md" target="_blank" rel="noopener">test-suite-results.md</a> (cycle 2)<br>+ Fix Group C full runs</td>
+          <td><span class="st-warn">&#9888;&#65039;</span> 390/391, failure pre-existing</td></tr>
+        <tr><td>Code review</td>
+          <td class="reports"><a href="code-review-report.md" target="_blank" rel="noopener">code-review-report.md</a><br><a href="code-review-reverify.md" target="_blank" rel="noopener">code-review-reverify.md</a></td>
+          <td><span class="st-warn">&#9888;&#65039;</span> 0 critical; 2 by-design warnings (HMAC fallback, BCrypt cost)</td></tr>
+        <tr><td>Pragmatic review</td>
+          <td class="reports"><a href="pragmatic-review.md" target="_blank" rel="noopener">pragmatic-review.md</a></td>
+          <td><span class="st-ok">&#9989;</span> appropriate; both warnings fixed (stack traces, restartable secret)</td></tr>
+        <tr><td>Production readiness</td>
+          <td class="reports"><a href="production-readiness-report.md" target="_blank" rel="noopener">production-readiness-report.md</a></td>
+          <td><span class="st-warn">&#9888;&#65039;</span> GO with mitigations locally; NO-GO for public exposure (TLS, rate limits, persistent tokens, JWKS)</td></tr>
+        <tr><td>Reality check</td>
+          <td class="reports"><a href="reality-check.md" target="_blank" rel="noopener">reality-check.md</a></td>
+          <td><span class="st-warn">&#9888;&#65039;</span> goal met in code; needs live run</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="grid2">
+<section id="tests">
+  <h2>Test Suite (final)</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Suite</th><th class="num">Total</th><th class="num">Pass</th><th class="num">Fail</th></tr></thead>
+      <tbody>
+        <tr><td>Host</td><td class="num">252</td><td class="num pass">252</td><td class="num">0</td></tr>
+        <tr><td>MCP server</td><td class="num">51</td><td class="num pass">51</td><td class="num">0</td></tr>
+        <tr><td>Frontend</td><td class="num">88</td><td class="num pass">87</td><td class="num"><span class="fail">1</span></td></tr>
+        <tr><td colspan="4" style="color:var(--dim);font-size:12.5px;border-bottom:1px solid var(--border)">Frontend failure: pre-existing stale <code>extension-points.test.tsx</code></td></tr>
+        <tr><td>Frontend lint</td><td class="num">&mdash;</td><td class="num">&mdash;</td><td class="num">16 problems</td></tr>
+        <tr><td colspan="4" style="color:var(--dim);font-size:12.5px">Lint: identical to baseline</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="matrix">
+  <h2>Token-Confusion Matrix</h2>
+  <div class="card">
+    <table class="matrix">
+      <thead><tr><th>Token</th><th><code>/api</code></th><th>consent principal</th><th>MCP inbound</th><th>exchange subject</th></tr></thead>
+      <tbody>
+        <tr><td><strong>T0</strong> session<br><span style="color:var(--dim);font-size:12px">aud=<code>${issuer}/api</code></span></td>
+          <td class="yes">&#9989;</td><td class="yes">&#9989;</td><td class="no">&#10060; inactive</td><td class="no">&#10060;</td></tr>
+        <tr><td><strong>T1</strong> MCP<br><span style="color:var(--dim);font-size:12px">aud=MCP URI</span></td>
+          <td class="no">&#10060; 401</td><td class="no">&#10060; 403</td><td class="yes">&#9989;</td><td class="yes">&#9989;</td></tr>
+        <tr><td><strong>T2</strong> delegated<br><span style="color:var(--dim);font-size:12px">aud=api, act</span></td>
+          <td class="yes">&#9989; mcp:*</td><td class="no">&#10060; 403</td><td class="no">&#10060; inactive</td><td class="no">&#10060;</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+
+<section id="issues">
+  <h2>Remaining Issues</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>Severity</th><th>ID</th><th>Description</th><th>Owner</th></tr></thead>
+      <tbody>
+        <tr><td><span class="sev warning">warning</span></td><td><code>V-W1</code></td><td>Manual live run with a real MCP client; record <code>resource</code> value</td><td>manual</td></tr>
+        <tr><td><span class="sev warning">warning</span></td><td><code>V-W7</code></td><td>Commit red-test files as RG-1 git baseline</td><td>user</td></tr>
+        <tr><td><span class="sev warning">warning</span></td><td><code>V-W8</code></td><td>Committed HMAC fallback secret (pre-existing, user-approved)</td><td>follow-up (JWKS / fail-fast outside dev)</td></tr>
+        <tr><td><span class="sev warning">warning</span></td><td><code>V-W9</code></td><td>BCrypt cost per call, no rate limiting</td><td>design / follow-up</td></tr>
+        <tr><td><span class="sev warning">warning</span></td><td><code>V-W10</code></td><td>Secret/issuer mismatch detected only at request time; MCP health ignores the AS</td><td>follow-up</td></tr>
+      </tbody>
+    </table>
+    <details style="margin-top:12px">
+      <summary>Info items (~8)</summary>
+      <table style="margin-top:8px">
+        <tbody>
+          <tr><td><span class="sev info">info</span></td><td><strong>N7:</strong> bash vs PowerShell parse <code>.aj-dev.env</code> slightly differently; Windows file permissions default (cannot cause a mismatch).</td></tr>
+          <tr><td><span class="sev info">info</span></td><td><strong>N8</strong> (pre-existing): consent page Cancel redirects to an unvalidated <code>redirect_uri</code> (open redirect) &mdash; follow-up.</td></tr>
+          <tr><td><span class="sev info">info</span></td><td>Unreachable &ldquo;resource resolves but differs&rdquo; branch (single MCP resource) &mdash; kept by spec (m3).</td></tr>
+          <tr><td><span class="sev info">info</span></td><td>Pre-existing AS items: <code>_token</code> accepted on any path, PKCE optional for confidential clients, no refresh-token family revocation, plugin iframes receive a consent-capable T0.</td></tr>
+          <tr><td><span class="sev info">info</span></td><td>Pre-existing frontend: 16 lint problems, stale <code>extension-points</code> test.</td></tr>
+          <tr><td><span class="sev info">info</span></td><td>Candidate standards awaiting the user (PRM via customizer + mTLS flag false; REST client error logs status+path; security error logs error_type + sanitised identified client id, stack traces DEBUG only; grant-type enforcement; <code>.aj-dev.env</code> local secret; DCR exact-loopback redirect rule; <code>.gitattributes *.sh eol=lf</code>; shared <code>AJ_*</code> env names).</td></tr>
+        </tbody>
+      </table>
+    </details>
+  </div>
+</section>
+
+<section id="history" class="card history">
+  <h2>Fix &amp; Re-Verification History</h2>
+  <table>
+    <thead><tr><th>Cycle</th><th>Issue</th><th>Fix</th><th>Re-check</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cyc c1">1</span></td><td><code>V-W2</code> grant types not enforced</td><td><code>requireGrantType</code> at authorize/code/refresh; refresh token only for refresh-registered clients</td><td><span class="ok-chip">&#10003; resolved</span> (code-review-reverify; tests in OAuth2GrantPolicyTests)</td></tr>
+      <tr><td><span class="cyc c1">1</span></td><td><code>V-W3</code> PRM mTLS flag true</td><td><code>tlsClientCertificateBoundAccessTokens(false)</code></td><td><span class="ok-chip">&#10003; resolved</span>; strict assertion added in cycle 2</td></tr>
+      <tr><td><span class="cyc c1">1</span></td><td><code>V-W4</code> redirect concatenation</td><td><code>UriComponentsBuilder</code> + <code>UriUtils</code>, <code>build(true)</code></td><td><span class="ok-chip">&#10003; resolved</span> (reserved-chars test)</td></tr>
+      <tr><td><span class="cyc c1">1</span></td><td><code>V-W5</code> no stack traces</td><td>DEBUG-level stack trace in 4 catch-alls</td><td><span class="ok-chip">&#10003; resolved</span>; documented in README/CLAUDE.md (cycle 2)</td></tr>
+      <tr><td><span class="cyc c1">1</span></td><td><code>V-W6</code> non-restartable secret</td><td><code>.aj-dev.env</code> (gitignored) reuse/generate</td><td><span class="ok-chip">&#10003; resolved</span> (scripted runs bash + PS 5.1)</td></tr>
+      <tr><td><span class="cyc c1">1</span></td><td>info a&ndash;i</td><td>overlap guard, docs wording, identified client id, dummy BCrypt, AjProperties backend, payload logging &rarr; DEBUG, secret not exported to plugins, spec deviations, 5 edge tests</td><td><span class="ok-chip">&#10003; resolved</span></td></tr>
+      <tr><td><span class="cyc c2">2</span></td><td><code>client_id=null</code> on failed Basic</td><td>claimed id recorded before lookup (no secret)</td><td><span class="ok-chip">&#10003; resolved</span> (OAuth2LoggingTests)</td></tr>
+      <tr><td><span class="cyc c2">2</span></td><td>ASCII-only sanitiser</td><td><code>[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]</code></td><td><span class="ok-chip">&#10003; resolved</span></td></tr>
+      <tr><td><span class="cyc c2">2</span></td><td>DCR redirect URI prefix check / 500s</td><td>parsed ASCII URIs, exact loopback hosts, https otherwise; null guards; defaults; build before save</td><td><span class="ok-chip">&#10003; resolved</span> (17 new cases)</td></tr>
+      <tr><td><span class="cyc c2">2</span></td><td>docs/spec drift, PRM test, log format</td><td>README/CLAUDE.md, spec AS-1/4/5/8/9/15/17 + CFG-2, strict assertion, <code>{} chars</code></td><td><span class="ok-chip">&#10003; resolved</span></td></tr>
+    </tbody>
+  </table>
+  <div class="trend">Test counts across cycles: host <strong>209 &rarr; 232 &rarr; 252</strong>; MCP <strong>49 &rarr; 51</strong>; frontend unchanged.</div>
+</section>
+
+<section id="recs">
+  <h2>Recommendations</h2>
+  <div class="card">
+    <ol class="recs">
+      <li>Run one manual flow: <code>start-dev</code>, connect MCP Inspector / Claude Code to <code>http://localhost:8181</code>, consent as editor (all 3 tools) and viewer (<code>aj_add_product</code> &rarr; insufficient scope), replay T1 at <code>http://localhost:8180/api/products</code> &rarr; 401; record the <code>resource</code> value from the host log.</li>
+      <li>Commit the red-test files first (baseline), then the implementation.</li>
+      <li>Follow-ups: JWKS/asymmetric keys or fail-fast on the committed HMAC secret, rate limiting, AS health indicator, consent Cancel open redirect, pre-existing AS hardening, frontend lint cleanup.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="checklist">
+  <h2>Verification Checklist</h2>
+  <div class="card">
+    <ul class="checklist">
+      <li>All declared reports on disk (cycle 1: 6; cycle 2: test-suite-results, code-review-reverify, completeness-reverify)</li>
+      <li>Fixes logged in <a href="../implementation/work-log.md" target="_blank" rel="noopener">implementation/work-log.md</a> and verification_context</li>
+      <li>RG-1 hashes OK after every cycle</li>
+      <li>Roadmap: none</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+</body>
+</html>

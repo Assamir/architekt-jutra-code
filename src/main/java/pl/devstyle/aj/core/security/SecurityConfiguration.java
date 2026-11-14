@@ -2,6 +2,7 @@ package pl.devstyle.aj.core.security;
 
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,18 +23,23 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import pl.devstyle.aj.core.error.ErrorResponse;
 import pl.devstyle.aj.core.oauth2.AuthorizationCodeService;
+import pl.devstyle.aj.core.oauth2.ClientAuthenticator;
 import pl.devstyle.aj.core.oauth2.OAuth2AuthorizationFilter;
-import pl.devstyle.aj.core.oauth2.OAuth2ClientAuthenticator;
+import pl.devstyle.aj.core.oauth2.OAuth2ErrorWriter;
 import pl.devstyle.aj.core.oauth2.OAuth2IntrospectionFilter;
+import pl.devstyle.aj.core.oauth2.OAuth2Properties;
 import pl.devstyle.aj.core.oauth2.OAuth2TokenFilter;
 import pl.devstyle.aj.core.oauth2.PublicClientRegistrationFilter;
 import pl.devstyle.aj.core.oauth2.RefreshTokenService;
+import pl.devstyle.aj.core.oauth2.ResourcePolicy;
+import pl.devstyle.aj.core.oauth2.TokenExchangeGrantHandler;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(OAuth2Properties.class)
 public class SecurityConfiguration {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -42,22 +48,33 @@ public class SecurityConfiguration {
     private final RegisteredClientRepository registeredClientRepository;
     private final AuthorizationCodeService authorizationCodeService;
     private final RefreshTokenService refreshTokenService;
+    private final OAuth2Properties oauth2Properties;
+    private final CustomUserDetailsService userDetailsService;
 
     public SecurityConfiguration(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper,
                                  @Value("${app.cors.allowed-origins:}") List<String> allowedOrigins,
                                  RegisteredClientRepository registeredClientRepository,
                                  AuthorizationCodeService authorizationCodeService,
-                                 RefreshTokenService refreshTokenService) {
+                                 RefreshTokenService refreshTokenService,
+                                 OAuth2Properties oauth2Properties,
+                                 CustomUserDetailsService userDetailsService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.objectMapper = objectMapper;
         this.allowedOrigins = allowedOrigins;
         this.registeredClientRepository = registeredClientRepository;
         this.authorizationCodeService = authorizationCodeService;
         this.refreshTokenService = refreshTokenService;
+        this.oauth2Properties = oauth2Properties;
+        this.userDetailsService = userDetailsService;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        var oauth2ErrorWriter = new OAuth2ErrorWriter(objectMapper);
+        var resourcePolicy = new ResourcePolicy(oauth2Properties);
+        var clientAuthenticator = new ClientAuthenticator(registeredClientRepository, passwordEncoder());
+        var tokenExchangeGrantHandler = new TokenExchangeGrantHandler(clientAuthenticator, resourcePolicy,
+                jwtTokenProvider, userDetailsService);
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // CSRF disabled: stateless JWT authentication with no cookie-based sessions
@@ -94,7 +111,6 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/.well-known/oauth-authorization-server").permitAll()
                         .requestMatchers(HttpMethod.POST, "/oauth2/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/oauth2/token").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/oauth2/introspect").permitAll()
 
                         // Public endpoints
                         .requestMatchers(HttpMethod.GET, "/api/oauth2/client-info").permitAll()
@@ -136,17 +152,18 @@ public class SecurityConfiguration {
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
                         UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(new PublicClientRegistrationFilter(registeredClientRepository, passwordEncoder()),
+                .addFilterAfter(new PublicClientRegistrationFilter(registeredClientRepository, passwordEncoder(),
+                                oauth2ErrorWriter),
                         JwtAuthenticationFilter.class)
-                .addFilterAfter(new OAuth2AuthorizationFilter(registeredClientRepository, authorizationCodeService),
+                .addFilterAfter(new OAuth2AuthorizationFilter(registeredClientRepository, authorizationCodeService,
+                                resourcePolicy, oauth2ErrorWriter),
                         PublicClientRegistrationFilter.class)
-                .addFilterAfter(new OAuth2TokenFilter(registeredClientRepository, authorizationCodeService,
-                                refreshTokenService, jwtTokenProvider, passwordEncoder(),
-                                new OAuth2ClientAuthenticator(registeredClientRepository, passwordEncoder())),
+                .addFilterAfter(new OAuth2TokenFilter(authorizationCodeService, refreshTokenService,
+                                jwtTokenProvider, clientAuthenticator, resourcePolicy, tokenExchangeGrantHandler,
+                                oauth2ErrorWriter, objectMapper),
                         OAuth2AuthorizationFilter.class)
-                .addFilterAfter(new OAuth2IntrospectionFilter(
-                                new OAuth2ClientAuthenticator(registeredClientRepository, passwordEncoder()),
-                                jwtTokenProvider),
+                .addFilterAfter(new OAuth2IntrospectionFilter(clientAuthenticator, resourcePolicy, jwtTokenProvider,
+                                oauth2Properties, oauth2ErrorWriter, objectMapper),
                         OAuth2TokenFilter.class);
 
         return http.build();

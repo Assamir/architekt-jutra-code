@@ -1,58 +1,59 @@
 package pl.devstyle.aj.mcp.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.support.BasicAuthenticationInterceptor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.OAuth2ProtectedResourceMetadata;
+import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
+import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
+import pl.devstyle.aj.mcp.security.AudienceValidatingIntrospector;
+import pl.devstyle.aj.mcp.security.McpAccessDeniedHandler;
 import pl.devstyle.aj.mcp.security.McpAuthenticationEntryPoint;
-import pl.devstyle.aj.mcp.security.McpIntrospectionFilter;
-import pl.devstyle.aj.mcp.security.TokenExchangeClient;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(AjProperties.class)
 public class SecurityConfig {
 
-    @Value("${aj.mcp.base-url}")
-    private String mcpBaseUrl;
+    private static final Duration INTROSPECTION_CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration INTROSPECTION_READ_TIMEOUT = Duration.ofSeconds(10);
 
-    @Value("${aj.oauth.client-id}")
-    private String clientId;
+    private final AjProperties properties;
 
-    @Value("${aj.oauth.client-secret}")
-    private String clientSecret;
-
-    @Bean
-    public McpAuthenticationEntryPoint mcpAuthenticationEntryPoint() {
-        return new McpAuthenticationEntryPoint(mcpBaseUrl + "/.well-known/oauth-protected-resource");
+    public SecurityConfig(AjProperties properties) {
+        this.properties = properties;
     }
 
     @Bean
-    public TokenExchangeClient tokenExchangeClient(RestClient oauthRestClient) {
-        return new TokenExchangeClient(oauthRestClient, clientId, clientSecret);
+    public OpaqueTokenIntrospector opaqueTokenIntrospector() {
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(INTROSPECTION_CONNECT_TIMEOUT);
+        requestFactory.setReadTimeout(INTROSPECTION_READ_TIMEOUT);
+
+        var restTemplate = new RestTemplate(requestFactory);
+        restTemplate.getInterceptors().add(new BasicAuthenticationInterceptor(
+                urlEncode(properties.oauth().clientId()), urlEncode(properties.oauth().clientSecret())));
+
+        var delegate = new SpringOpaqueTokenIntrospector(properties.introspectionUri(), restTemplate);
+        return new AudienceValidatingIntrospector(delegate, properties.mcp().baseUrl());
     }
 
     @Bean
-    public McpIntrospectionFilter mcpIntrospectionFilter(RestClient oauthRestClient,
-                                                         TokenExchangeClient tokenExchangeClient,
-                                                         McpAuthenticationEntryPoint mcpAuthenticationEntryPoint) {
-        return new McpIntrospectionFilter(
-                oauthRestClient,
-                tokenExchangeClient,
-                mcpAuthenticationEntryPoint,
-                clientId,
-                clientSecret
-        );
-    }
+    public SecurityFilterChain filterChain(HttpSecurity http, OpaqueTokenIntrospector introspector) throws Exception {
+        var entryPoint = new McpAuthenticationEntryPoint(properties.resourceMetadataUrl());
+        var accessDeniedHandler = new McpAccessDeniedHandler(properties.resourceMetadataUrl());
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,
-                                           McpIntrospectionFilter mcpIntrospectionFilter,
-                                           McpAuthenticationEntryPoint mcpAuthenticationEntryPoint) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -60,14 +61,33 @@ public class SecurityConfig {
                         .requestMatchers("/.well-known/**").permitAll()
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/").hasAnyAuthority("SCOPE_mcp:read", "SCOPE_mcp:edit")
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(mcpAuthenticationEntryPoint)
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .opaqueToken(opaqueToken -> opaqueToken.introspector(introspector))
+                        .protectedResourceMetadata(metadata -> metadata
+                                .protectedResourceMetadataCustomizer(this::describeProtectedResource))
+                        .authenticationEntryPoint(entryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
                 )
-                .addFilterBefore(mcpIntrospectionFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(entryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                );
 
         return http.build();
+    }
+
+    private void describeProtectedResource(OAuth2ProtectedResourceMetadata.Builder metadata) {
+        metadata.resource(properties.mcp().baseUrl())
+                .authorizationServer(properties.oauth().serverUrl())
+                .scope("mcp:read")
+                .scope("mcp:edit")
+                .tlsClientCertificateBoundAccessTokens(false);
+    }
+
+    private static String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }

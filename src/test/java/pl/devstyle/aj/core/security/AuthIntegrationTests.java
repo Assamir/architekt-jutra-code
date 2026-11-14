@@ -3,6 +3,7 @@ package pl.devstyle.aj.core.security;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -16,7 +17,9 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 import javax.crypto.SecretKey;
+import java.util.Base64;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -38,6 +41,12 @@ class AuthIntegrationTests {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @Value("${app.jwt.secret}")
+    private String jwtSecret;
+
+    private static final String ISSUER = "http://localhost:8180";
+    private static final String API_AUDIENCE = ISSUER + "/api";
 
     private String loginAndGetToken(String username, String password) throws Exception {
         var request = new LoginRequest(username, password);
@@ -187,6 +196,48 @@ class AuthIntegrationTests {
                 .andExpect(status().isOk());
     }
 
+    // --- Fixed issuer and API audience (T0) ---
+
+    @Test
+    void login_validCredentials_tokenCarriesIssuerAndApiAudience() throws Exception {
+        var token = loginAndGetToken("admin", "admin123");
+
+        var payload = objectMapper.readTree(Base64.getUrlDecoder().decode(token.split("\\.")[1]));
+        assertThat(payload.get("iss").asText()).isEqualTo(ISSUER);
+        assertThat(payload.get("aud").isArray()).isTrue();
+        assertThat(payload.get("aud").valueStream().map(node -> node.asText()).toList()).contains(API_AUDIENCE);
+    }
+
+    @Test
+    void protectedEndpoint_tokenWithoutAudience_returns401() throws Exception {
+        var token = signedSessionToken(ISSUER, null);
+
+        mockMvc.perform(get("/api/products")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    void protectedEndpoint_tokenWithForeignIssuer_returns401() throws Exception {
+        var token = signedSessionToken("http://attacker.example", API_AUDIENCE);
+
+        mockMvc.perform(get("/api/products")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    void protectedEndpoint_tokenWithForeignAudience_returns401() throws Exception {
+        var token = signedSessionToken(ISSUER, "http://localhost:8181");
+
+        mockMvc.perform(get("/api/products")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
     @Test
     void protectedEndpoint_bearerPrefixMissing_returns401() throws Exception {
         var token = loginAndGetToken("admin", "admin123");
@@ -195,5 +246,19 @@ class AuthIntegrationTests {
                         .header("Authorization", token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
+    }
+
+    private String signedSessionToken(String issuer, String audience) {
+        SecretKey key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret));
+        var builder = Jwts.builder()
+                .issuer(issuer)
+                .subject("admin")
+                .claim("permissions", java.util.List.of("READ", "EDIT", "PLUGIN_MANAGEMENT"))
+                .issuedAt(new java.util.Date())
+                .expiration(new java.util.Date(System.currentTimeMillis() + 3600000));
+        if (audience != null) {
+            builder.audience().add(audience);
+        }
+        return builder.signWith(key).compact();
     }
 }

@@ -14,21 +14,21 @@ describe("Plugin SDK", () => {
     it("extracts extensionPoint prefix and JSON metadata", async () => {
       const { parseContext } = await import("../plugin-sdk/context");
 
-      const windowName = 'RENDER{"pluginId":"warehouse","pluginName":"Warehouse","hostOrigin":"http://localhost:8080"}';
+      const windowName = 'RENDER{"pluginId":"warehouse","pluginName":"Warehouse","hostOrigin":"http://localhost:8180"}';
 
       const ctx = parseContext(windowName);
 
       expect(ctx.extensionPoint).toBe("RENDER");
       expect(ctx.pluginId).toBe("warehouse");
       expect(ctx.pluginName).toBe("Warehouse");
-      expect(ctx.hostOrigin).toBe("http://localhost:8080");
+      expect(ctx.hostOrigin).toBe("http://localhost:8180");
       expect(ctx.productId).toBeUndefined();
     });
 
     it("extracts productId from PRODUCT_DETAIL context", async () => {
       const { parseContext } = await import("../plugin-sdk/context");
 
-      const windowName = 'PRODUCT_DETAIL{"pluginId":"warehouse","pluginName":"Warehouse","hostOrigin":"http://localhost:8080","productId":"prod-123"}';
+      const windowName = 'PRODUCT_DETAIL{"pluginId":"warehouse","pluginName":"Warehouse","hostOrigin":"http://localhost:8180","productId":"prod-123"}';
 
       const ctx = parseContext(windowName);
 
@@ -44,7 +44,7 @@ describe("Plugin SDK", () => {
       const mockPostMessage = vi.fn();
       vi.stubGlobal("parent", { postMessage: mockPostMessage });
 
-      const resultPromise = sendMessageAndWait("pluginFetch", { url: "/api/products" }, "http://localhost:8080");
+      const resultPromise = sendMessageAndWait("pluginFetch", { url: "/api/products" }, "http://localhost:8180");
 
       // Extract the requestId from the posted message
       expect(mockPostMessage).toHaveBeenCalledOnce();
@@ -67,7 +67,7 @@ describe("Plugin SDK", () => {
       const mockPostMessage = vi.fn();
       vi.stubGlobal("parent", { postMessage: mockPostMessage });
 
-      const resultPromise = sendMessageAndWait("pluginFetch", { url: "/api/products" }, "http://localhost:8080");
+      const resultPromise = sendMessageAndWait("pluginFetch", { url: "/api/products" }, "http://localhost:8180");
 
       // Advance timers past the 10s timeout
       vi.advanceTimersByTime(10_001);
@@ -83,7 +83,7 @@ describe("Plugin SDK", () => {
       const { hostApp } = await import("../plugin-sdk/host-app");
 
       // Set up host origin
-      (window as any).__pluginHostOrigin = "http://localhost:8080";
+      (window as any).__pluginHostOrigin = "http://localhost:8180";
 
       const mockPostMessage = vi.fn();
       vi.stubGlobal("parent", { postMessage: mockPostMessage });
@@ -114,7 +114,7 @@ describe("Plugin SDK", () => {
       // Reset the cached context by re-importing fresh module
       vi.resetModules();
 
-      const windowName = 'PRODUCT_DETAIL{"pluginId":"warehouse","pluginName":"Warehouse","hostOrigin":"http://localhost:8080","productId":"prod-456"}';
+      const windowName = 'PRODUCT_DETAIL{"pluginId":"warehouse","pluginName":"Warehouse","hostOrigin":"http://localhost:8180","productId":"prod-456"}';
       Object.defineProperty(window, "name", { value: windowName, writable: true });
 
       const { thisPlugin } = await import("../plugin-sdk/this-plugin");
@@ -124,7 +124,7 @@ describe("Plugin SDK", () => {
       expect(ctx.extensionPoint).toBe("PRODUCT_DETAIL");
       expect(ctx.pluginId).toBe("warehouse");
       expect(ctx.pluginName).toBe("Warehouse");
-      expect(ctx.hostOrigin).toBe("http://localhost:8080");
+      expect(ctx.hostOrigin).toBe("http://localhost:8180");
       expect(ctx.productId).toBe("prod-456");
 
       Object.defineProperty(window, "name", { value: "", writable: true });
@@ -139,7 +139,7 @@ describe("Plugin SDK", () => {
       vi.stubGlobal("parent", { postMessage: mockPostMessage });
 
       const countBefore = getPendingCount();
-      sendFireAndForget("filterChange", { stock: true }, "http://localhost:8080");
+      sendFireAndForget("filterChange", { stock: true }, "http://localhost:8180");
 
       expect(mockPostMessage).toHaveBeenCalledOnce();
       const postedMessage = mockPostMessage.mock.calls[0][0];

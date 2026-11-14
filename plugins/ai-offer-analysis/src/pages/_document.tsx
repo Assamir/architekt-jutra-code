@@ -4,8 +4,8 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <script src="http://localhost:8080/assets/plugin-sdk.js" />
-        <link rel="stylesheet" href="http://localhost:8080/assets/plugin-ui.css" />
+        <script src="http://localhost:8180/assets/plugin-sdk.js" />
+        <link rel="stylesheet" href="http://localhost:8180/assets/plugin-ui.css" />
       </Head>
       <body>
         <Main />

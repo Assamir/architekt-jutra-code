@@ -26,8 +26,7 @@ public class DatabaseRegisteredClientRepository implements RegisteredClientRepos
     public void save(RegisteredClient registeredClient) {
         var entity = toEntity(registeredClient);
         jpaRepository.save(entity);
-        log.info("Saved OAuth2 registered client | client_id={} | client_name={}",
-                registeredClient.getClientId(), registeredClient.getClientName());
+        log.info("Saved OAuth2 registered client | client_id={}", registeredClient.getClientId());
     }
 
     @Override
@@ -42,6 +41,14 @@ public class DatabaseRegisteredClientRepository implements RegisteredClientRepos
         return jpaRepository.findByClientId(clientId)
                 .map(this::toRegisteredClient)
                 .orElse(null);
+    }
+
+    public boolean deleteByClientId(String clientId) {
+        var deleted = jpaRepository.deleteByClientId(clientId) > 0;
+        if (deleted) {
+            log.info("Deleted OAuth2 registered client | client_id={}", clientId);
+        }
+        return deleted;
     }
 
     private RegisteredClientEntity toEntity(RegisteredClient client) {

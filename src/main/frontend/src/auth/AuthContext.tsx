@@ -11,7 +11,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function decodeJwtPayload(token: string): { sub?: string; permissions?: string[]; exp?: number } {
+function decodeJwtPayload(token: string): { sub?: string; permissions?: string[]; exp?: number; aud?: string | string[] } {
   try {
     const base64Url = token.split(".")[1];
     if (!base64Url) return {};
@@ -31,8 +31,8 @@ function isTokenExpired(token: string): boolean {
 
 function loadStoredAuth(): { token: string | null; username: string | null; permissions: string[] } {
   const stored = localStorage.getItem("auth_token");
-  if (stored && !isTokenExpired(stored)) {
-    const payload = decodeJwtPayload(stored);
+  const payload = decodeJwtPayload(stored ?? "");
+  if (stored && !isTokenExpired(stored) && payload.aud) {
     return { token: stored, username: payload.sub ?? null, permissions: payload.permissions ?? [] };
   }
   if (stored) {

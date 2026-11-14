@@ -1,16 +1,25 @@
 package pl.devstyle.aj.mcp.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
+import org.springframework.security.oauth2.server.resource.introspection.OAuth2IntrospectionAuthenticatedPrincipal;
 import pl.devstyle.aj.mcp.client.AjApiClient;
+import pl.devstyle.aj.mcp.client.TokenExchangeClient;
 import pl.devstyle.aj.mcp.client.dto.CategoryResponse;
 import pl.devstyle.aj.mcp.client.dto.ProductResponse;
 
 import io.modelcontextprotocol.common.McpTransportContext;
+import pl.devstyle.aj.mcp.security.ToolSecurity;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +41,14 @@ class ToolCallIntegrationTests {
     @MockitoBean
     private AjApiClient ajApiClient;
 
+    @MockitoBean
+    private TokenExchangeClient tokenExchangeClient;
+
+    @BeforeEach
+    void stubTokenExchange() {
+        when(tokenExchangeClient.exchange(any())).thenReturn("exchanged-token");
+    }
+
     private final CategoryResponse sampleCategory = new CategoryResponse(
             1L, "Electronics", "Electronic devices");
 
@@ -42,11 +59,11 @@ class ToolCallIntegrationTests {
 
     @Test
     void listProducts_callHandler_executesWithoutException() {
-        when(ajApiClient.listProducts(any())).thenReturn(List.of(sampleProduct));
+        when(ajApiClient.listProducts(any(), any())).thenReturn(List.of(sampleProduct));
 
         var toolSpec = productService.buildToolListProducts();
 
-        assertThatCode(() -> toolSpec.callHandler().apply(McpTransportContext.EMPTY,
+        assertThatCode(() -> toolSpec.callHandler().apply(McpTransportContext.create(Map.of(ToolSecurity.AUTHENTICATION_KEY, caller())),
                 new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
                         "aj_list_products", Map.of())))
                 .doesNotThrowAnyException();
@@ -54,7 +71,7 @@ class ToolCallIntegrationTests {
 
     @Test
     void addProduct_callHandler_executesWithValidArgs() {
-        when(ajApiClient.createProduct(any())).thenReturn(sampleProduct);
+        when(ajApiClient.createProduct(any(), any())).thenReturn(sampleProduct);
 
         var toolSpec = productService.buildToolAddProduct();
         Map<String, Object> args = Map.of(
@@ -63,7 +80,7 @@ class ToolCallIntegrationTests {
                 "sku", "LAP-001",
                 "categoryId", 1);
 
-        assertThatCode(() -> toolSpec.callHandler().apply(McpTransportContext.EMPTY,
+        assertThatCode(() -> toolSpec.callHandler().apply(McpTransportContext.create(Map.of(ToolSecurity.AUTHENTICATION_KEY, caller())),
                 new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
                         "aj_add_product", args)))
                 .doesNotThrowAnyException();
@@ -71,11 +88,11 @@ class ToolCallIntegrationTests {
 
     @Test
     void listCategories_callHandler_executesWithoutException() {
-        when(ajApiClient.listCategories()).thenReturn(List.of(sampleCategory));
+        when(ajApiClient.listCategories(any())).thenReturn(List.of(sampleCategory));
 
         var toolSpec = categoryService.buildToolListCategories();
 
-        assertThatCode(() -> toolSpec.callHandler().apply(McpTransportContext.EMPTY,
+        assertThatCode(() -> toolSpec.callHandler().apply(McpTransportContext.create(Map.of(ToolSecurity.AUTHENTICATION_KEY, caller())),
                 new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
                         "aj_list_categories", Map.of())))
                 .doesNotThrowAnyException();
@@ -83,9 +100,9 @@ class ToolCallIntegrationTests {
 
     @Test
     void listProducts_returnsWrappedResponse() {
-        when(ajApiClient.listProducts(any())).thenReturn(List.of(sampleProduct));
+        when(ajApiClient.listProducts(any(), any())).thenReturn(List.of(sampleProduct));
 
-        var result = productService.listProducts(null);
+        var result = productService.listProducts(caller(), null);
 
         assertThat(result).containsKey("products");
         assertThat(result.get("products")).hasSize(1);
@@ -94,12 +111,20 @@ class ToolCallIntegrationTests {
 
     @Test
     void listCategories_returnsWrappedResponse() {
-        when(ajApiClient.listCategories()).thenReturn(List.of(sampleCategory));
+        when(ajApiClient.listCategories(any())).thenReturn(List.of(sampleCategory));
 
-        var result = categoryService.listCategories();
+        var result = categoryService.listCategories(caller());
 
         assertThat(result).containsKey("categories");
         assertThat(result.get("categories")).hasSize(1);
         assertThat(result.get("categories").getFirst().name()).isEqualTo("Electronics");
+    }
+
+    private static BearerTokenAuthentication caller() {
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("SCOPE_mcp:read"), new SimpleGrantedAuthority("SCOPE_mcp:edit"));
+        var principal = new OAuth2IntrospectionAuthenticatedPrincipal(Map.<String, Object>of("sub", "admin"), authorities);
+        var token = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "test-token",
+                Instant.now(), Instant.now().plusSeconds(600));
+        return new BearerTokenAuthentication(principal, token, authorities);
     }
 }

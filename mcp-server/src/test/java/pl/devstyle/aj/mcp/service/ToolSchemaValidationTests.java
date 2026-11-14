@@ -12,11 +12,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
+import org.springframework.security.oauth2.server.resource.introspection.OAuth2IntrospectionAuthenticatedPrincipal;
 import pl.devstyle.aj.mcp.client.AjApiClient;
+import pl.devstyle.aj.mcp.client.TokenExchangeClient;
 import pl.devstyle.aj.mcp.client.dto.CategoryResponse;
 import pl.devstyle.aj.mcp.client.dto.ProductResponse;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +43,14 @@ class ToolSchemaValidationTests {
 
     @MockitoBean
     private AjApiClient ajApiClient;
+
+    @MockitoBean
+    private TokenExchangeClient tokenExchangeClient;
+
+    @BeforeEach
+    void stubTokenExchange() {
+        when(tokenExchangeClient.exchange(any())).thenReturn("exchanged-token");
+    }
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -97,9 +112,9 @@ class ToolSchemaValidationTests {
 
     @Test
     void listProducts_outputSchema_validatesAgainstSampleResponse() throws Exception {
-        when(ajApiClient.listProducts(any())).thenReturn(List.of(sampleProduct));
+        when(ajApiClient.listProducts(any(), any())).thenReturn(List.of(sampleProduct));
 
-        Map<String, List<ProductResponse>> response = productService.listProducts(null);
+        Map<String, List<ProductResponse>> response = productService.listProducts(caller(), null);
         JsonNode responseJson = objectMapper.valueToTree(response);
 
         McpStatelessServerFeatures.SyncToolSpecification toolSpec = productService.buildToolListProducts();
@@ -134,9 +149,9 @@ class ToolSchemaValidationTests {
 
     @Test
     void listCategories_outputSchema_validatesAgainstSampleResponse() throws Exception {
-        when(ajApiClient.listCategories()).thenReturn(List.of(sampleCategory));
+        when(ajApiClient.listCategories(any())).thenReturn(List.of(sampleCategory));
 
-        Map<String, List<CategoryResponse>> response = categoryService.listCategories();
+        Map<String, List<CategoryResponse>> response = categoryService.listCategories(caller());
         JsonNode responseJson = objectMapper.valueToTree(response);
 
         McpStatelessServerFeatures.SyncToolSpecification toolSpec = categoryService.buildToolListCategories();
@@ -147,5 +162,13 @@ class ToolSchemaValidationTests {
         assertThat(errors)
                 .as("Output schema for aj_list_categories should validate against sample CategoryResponse")
                 .isEmpty();
+    }
+
+    private static BearerTokenAuthentication caller() {
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("SCOPE_mcp:read"), new SimpleGrantedAuthority("SCOPE_mcp:edit"));
+        var principal = new OAuth2IntrospectionAuthenticatedPrincipal(Map.<String, Object>of("sub", "admin"), authorities);
+        var token = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "test-token",
+                Instant.now(), Instant.now().plusSeconds(600));
+        return new BearerTokenAuthentication(principal, token, authorities);
     }
 }

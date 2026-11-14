@@ -19,27 +19,36 @@ import org.springframework.security.oauth2.server.authorization.oidc.http.conver
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 public class PublicClientRegistrationFilter extends OncePerRequestFilter {
 
     private static final String REGISTRATION_ENDPOINT = "/oauth2/register";
-    private static final List<String> ALLOWED_SCOPES = List.of("mcp:read", "mcp:edit");
+    private static final List<String> ALLOWED_SCOPES = ScopePolicy.SUPPORTED_SCOPES;
+    private static final List<String> DEFAULT_RESPONSE_TYPES = List.of("code");
+    private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
 
     private final RegisteredClientRepository registeredClientRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final OidcClientRegistrationHttpMessageConverter oidcConverter;
+    private final OAuth2ErrorWriter errorWriter;
 
     public PublicClientRegistrationFilter(RegisteredClientRepository registeredClientRepository,
-                                          PasswordEncoder passwordEncoder) {
+                                          PasswordEncoder passwordEncoder,
+                                          OAuth2ErrorWriter errorWriter) {
         this.registeredClientRepository = registeredClientRepository;
         this.passwordEncoder = passwordEncoder;
+        this.errorWriter = errorWriter;
         this.objectMapper = new ObjectMapper();
         this.oidcConverter = new OidcClientRegistrationHttpMessageConverter();
     }
@@ -55,11 +64,12 @@ public class PublicClientRegistrationFilter extends OncePerRequestFilter {
         try {
             handleRegistrationRequest(request, response);
         } catch (IllegalArgumentException e) {
-            log.warn("Client registration failed | reason={}", e.getMessage());
-            writeError(response, OAuth2Error.INVALID_CLIENT_METADATA, e.getMessage());
+            log.warn("Client registration rejected | error={}", OAuth2Error.INVALID_CLIENT_METADATA.getError());
+            errorWriter.write(response, OAuth2Error.INVALID_CLIENT_METADATA, e.getMessage());
         } catch (Exception e) {
-            log.error("Client registration error | reason={}", e.getMessage(), e);
-            writeError(response, OAuth2Error.SERVER_ERROR, "An error occurred while processing the registration request");
+            log.error("Client registration error | error_type={}", e.getClass().getName());
+            log.debug("Client registration error details", e);
+            errorWriter.write(response, OAuth2Error.SERVER_ERROR, "An error occurred while processing the registration request");
         }
     }
 
@@ -70,12 +80,12 @@ public class PublicClientRegistrationFilter extends OncePerRequestFilter {
         String clientName = (String) requestBody.get("client_name");
         List<String> responseTypes = (List<String>) requestBody.get("response_types");
         List<String> grantTypes = (List<String>) requestBody.get("grant_types");
-        List<String> redirectUris = (List<String>) requestBody.get("redirect_uris");
+        List<Object> redirectUris = (List<Object>) requestBody.get("redirect_uris");
         String tokenEndpointAuthMethod = (String) requestBody.get("token_endpoint_auth_method");
         String scope = (String) requestBody.get("scope");
 
         validateClientName(clientName);
-        validateRedirectUris(redirectUris, grantTypes);
+        List<String> validatedRedirectUris = validateRedirectUris(redirectUris);
         List<String> scopes = (scope != null && !scope.trim().isEmpty())
                 ? Arrays.asList(scope.trim().split("\\s+"))
                 : ALLOWED_SCOPES;
@@ -89,14 +99,17 @@ public class PublicClientRegistrationFilter extends OncePerRequestFilter {
                 .clientName(clientName)
                 .clientIdIssuedAt(Instant.now())
                 .clientSecret(passwordEncoder.encode(clientSecret))
-                .redirectUris(uris -> uris.addAll(redirectUris))
+                .redirectUris(uris -> uris.addAll(validatedRedirectUris))
                 .scopes(scopeSet -> scopeSet.addAll(scopes));
 
         configureAuthenticationMethod(builder, tokenEndpointAuthMethod);
         configureGrantTypes(builder, grantTypes);
 
         var registeredClient = builder.build();
-        registeredClientRepository.save(registeredClient);
+        List<String> registeredGrantTypes = registeredClient.getAuthorizationGrantTypes().stream()
+                .map(AuthorizationGrantType::getValue)
+                .sorted()
+                .toList();
 
         var oidcRegistration = OidcClientRegistration.builder()
                 .clientId(registeredClient.getClientId())
@@ -104,19 +117,22 @@ public class PublicClientRegistrationFilter extends OncePerRequestFilter {
                 .clientName(registeredClient.getClientName())
                 .clientIdIssuedAt(registeredClient.getClientIdIssuedAt())
                 .redirectUris(uris -> uris.addAll(registeredClient.getRedirectUris()))
-                .grantTypes(grants -> grants.addAll(grantTypes))
-                .responseTypes(types -> { if (responseTypes != null) types.addAll(responseTypes); })
+                .grantTypes(grants -> grants.addAll(registeredGrantTypes))
+                .responseTypes(types -> types.addAll(
+                        responseTypes == null || responseTypes.isEmpty() ? DEFAULT_RESPONSE_TYPES : responseTypes))
                 .scopes(scopeSet -> scopeSet.addAll(registeredClient.getScopes()))
                 .tokenEndpointAuthenticationMethod(tokenEndpointAuthMethod)
                 .clientSecretExpiresAt(Instant.ofEpochSecond(0))
                 .build();
 
+        registeredClientRepository.save(registeredClient);
+
         var httpResponse = new ServletServerHttpResponse(response);
         httpResponse.setStatusCode(HttpStatus.CREATED);
         oidcConverter.write(oidcRegistration, MediaType.APPLICATION_JSON, httpResponse);
 
-        log.info("Client registered | client_id={} | client_name={} | grant_types={} | scopes={} | auth_method={}",
-                clientId, clientName, grantTypes, scopes, tokenEndpointAuthMethod);
+        log.info("Client registered | client_id={} | grant_types={} | scopes={} | auth_method={}",
+                clientId, registeredGrantTypes, scopes, tokenEndpointAuthMethod);
     }
 
     private void configureAuthenticationMethod(RegisteredClient.Builder builder, String tokenEndpointAuthMethod) {
@@ -155,27 +171,44 @@ public class PublicClientRegistrationFilter extends OncePerRequestFilter {
         }
     }
 
-    private void validateRedirectUris(List<String> redirectUris, List<String> grantTypes) {
-        if (grantTypes != null && grantTypes.contains("authorization_code")) {
-            if (redirectUris == null || redirectUris.isEmpty()) {
-                throw new IllegalArgumentException("redirect_uris is required when using authorization_code grant type");
-            }
-            for (String uri : redirectUris) {
-                if (uri == null || uri.trim().isEmpty()) {
-                    throw new IllegalArgumentException("redirect_uris cannot contain empty values");
-                }
-                if (!uri.startsWith("https://") && !isLoopbackUri(uri)) {
-                    throw new IllegalArgumentException("redirect_uri must be a valid HTTPS URL: " + uri);
-                }
-                if (uri.contains("#")) {
-                    throw new IllegalArgumentException("redirect_uri cannot contain fragments: " + uri);
-                }
-            }
+    /**
+     * Every supported client uses the authorization code flow (it is also the default grant), so redirect URIs are
+     * always required. Each must parse as an absolute ASCII URI without a fragment, and be either {@code https} or
+     * {@code http} on an exact loopback host.
+     */
+    private List<String> validateRedirectUris(List<Object> redirectUris) {
+        if (redirectUris == null || redirectUris.isEmpty()) {
+            throw new IllegalArgumentException("redirect_uris is required");
         }
+        return redirectUris.stream().map(this::validateRedirectUri).toList();
     }
 
-    private boolean isLoopbackUri(String uri) {
-        return uri.startsWith("http://localhost") || uri.startsWith("http://127.0.0.1") || uri.startsWith("http://[::1]");
+    private String validateRedirectUri(Object value) {
+        if (!(value instanceof String uri) || uri.isBlank()) {
+            throw new IllegalArgumentException("redirect_uris must contain non-empty strings");
+        }
+        URI parsed;
+        try {
+            parsed = new URI(uri);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("redirect_uri is not a valid URI: " + uri);
+        }
+        if (!parsed.toASCIIString().equals(uri)) {
+            throw new IllegalArgumentException("redirect_uri must contain only ASCII characters: " + uri);
+        }
+        if (parsed.getRawFragment() != null || uri.contains("#")) {
+            throw new IllegalArgumentException("redirect_uri cannot contain fragments: " + uri);
+        }
+        String scheme = parsed.getScheme();
+        String host = parsed.getHost();
+        boolean https = "https".equalsIgnoreCase(scheme) && host != null;
+        boolean loopbackHttp = "http".equalsIgnoreCase(scheme) && host != null
+                && LOOPBACK_HOSTS.contains(host.toLowerCase(Locale.ROOT));
+        if (!https && !loopbackHttp || parsed.getRawUserInfo() != null) {
+            throw new IllegalArgumentException(
+                    "redirect_uri must be an HTTPS URL or an http URL on localhost, 127.0.0.1 or [::1]: " + uri);
+        }
+        return uri;
     }
 
     private void validateScope(List<String> scopes) {
@@ -184,19 +217,5 @@ public class PublicClientRegistrationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("Unsupported scope: " + requestedScope + ". Allowed scopes: " + ALLOWED_SCOPES);
             }
         }
-    }
-
-    private void writeError(HttpServletResponse response, OAuth2Error error, String customDescription) throws IOException {
-        int status = switch (error) {
-            case INVALID_CLIENT -> HttpServletResponse.SC_UNAUTHORIZED;
-            case UNAUTHORIZED_CLIENT, ACCESS_DENIED -> HttpServletResponse.SC_FORBIDDEN;
-            case SERVER_ERROR -> HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
-            default -> HttpServletResponse.SC_BAD_REQUEST;
-        };
-        response.setStatus(status);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        byte[] body = objectMapper.writeValueAsBytes(OAuth2ErrorResponse.of(error, customDescription));
-        response.getOutputStream().write(body);
-        response.getOutputStream().flush();
     }
 }
